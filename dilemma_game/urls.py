@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework.authtoken.views import obtain_auth_token
 from . import views
 
 router = DefaultRouter()
@@ -9,6 +10,8 @@ router.register(r'games', views.GameViewSet, basename='api-game')
 urlpatterns = [
     # API URLs
     path('api/', include(router.urls)),
+    path('api/auth/login/', obtain_auth_token, name='api-token-auth'),
+    path('api/leaderboard/', views.api_leaderboard, name='api-leaderboard'),
     
     # Template URLs
     path('', views.home, name='home'),

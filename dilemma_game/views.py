@@ -5,7 +5,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy
 from django.contrib import messages
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from .models import Strategy, Game, Round
 from .services import GameService
@@ -182,3 +182,35 @@ def leaderboard(request):
     return render(request, 'dilemma_game/leaderboard.html', {
         'strategy_stats': strategy_stats
     })
+
+# API视图
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_leaderboard(request):
+    strategies = Strategy.objects.all()
+    strategy_stats = []
+    
+    for strategy in strategies:
+        games_as_p1 = Game.objects.filter(strategy1=strategy, status='COMPLETED')
+        games_as_p2 = Game.objects.filter(strategy2=strategy, status='COMPLETED')
+        
+        total_score = sum(g.player1_score for g in games_as_p1) + sum(g.player2_score for g in games_as_p2)
+        total_games = games_as_p1.count() + games_as_p2.count()
+        
+        if total_games > 0:
+            avg_score = total_score / total_games
+        else:
+            avg_score = 0
+            
+        strategy_stats.append({
+            'strategy_id': strategy.id,
+            'strategy_name': strategy.name,
+            'created_by': strategy.created_by.username,
+            'total_games': total_games,
+            'total_score': total_score,
+            'avg_score': avg_score
+        })
+    
+    strategy_stats.sort(key=lambda x: x['avg_score'], reverse=True)
+    
+    return Response(strategy_stats)
