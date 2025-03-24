@@ -1,0 +1,53 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Strategies{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>Your Strategies</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'strategy_create' %}" class="btn btn-primary">
+            Create New Strategy
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    {% if strategies %}
+    {% for strategy in strategies %}
+    <div class="col-md-6">
+        <div class="card strategy-card">
+            <div class="card-body">
+                <h5 class="card-title">{{ strategy.name }}</h5>
+                <p class="card-text">{{ strategy.description }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Created: {{ strategy.created_at|date:"M d, Y" }}</small>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                            data-bs-target="#code-{{ strategy.id }}">
+                            View Code
+                        </button>
+                        <a href="{% url 'strategy_edit' strategy.id %}" class="btn btn-sm btn-outline-secondary">
+                            Edit
+                        </a>
+                    </div>
+                </div>
+                <div class="collapse mt-3" id="code-{{ strategy.id }}">
+                    <pre class="bg-light p-3"><code>{{ strategy.code }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            You haven't created any strategies yet.
+            <a href="{% url 'strategy_create' %}" class="alert-link">Create your first strategy</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

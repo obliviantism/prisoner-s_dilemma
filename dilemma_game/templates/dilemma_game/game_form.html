@@ -1,0 +1,81 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Start New Game{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Start New Game</h2>
+
+                {% if strategies|length < 2 %} <div class="alert alert-warning">
+                    You need at least two strategies to start a game.
+                    <a href="{% url 'strategy_create' %}" class="alert-link">Create more strategies</a>
+            </div>
+            {% else %}
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="strategy1" class="form-label">Strategy 1</label>
+                    <select class="form-select" id="strategy1" name="strategy1" required>
+                        <option value="">Select a strategy</option>
+                        {% for strategy in strategies %}
+                        <option value="{{ strategy.id }}">{{ strategy.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="strategy2" class="form-label">Strategy 2</label>
+                    <select class="form-select" id="strategy2" name="strategy2" required>
+                        <option value="">Select a strategy</option>
+                        {% for strategy in strategies %}
+                        <option value="{{ strategy.id }}">{{ strategy.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="total_rounds" class="form-label">Number of Rounds</label>
+                    <input type="number" class="form-control" id="total_rounds" name="total_rounds" value="200" min="1"
+                        max="1000" required>
+                    <div class="form-text">Choose between 1 and 1000 rounds</div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'game_list' %}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Start Game</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Prevent selecting the same strategy twice
+    document.getElementById('strategy2').addEventListener('change', function () {
+        const strategy1 = document.getElementById('strategy1');
+        const strategy2 = this;
+
+        if (strategy1.value === strategy2.value) {
+            alert("Please select different strategies");
+            strategy2.value = "";
+        }
+    });
+
+    document.getElementById('strategy1').addEventListener('change', function () {
+        const strategy1 = this;
+        const strategy2 = document.getElementById('strategy2');
+
+        if (strategy1.value === strategy2.value) {
+            strategy2.value = "";
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

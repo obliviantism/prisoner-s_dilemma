@@ -1,0 +1,77 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2 text-center">
+        <h1 class="display-4 mb-4">Welcome to Prisoner's Dilemma</h1>
+        <p class="lead mb-4">
+            Test your strategies in the classic game of cooperation and deception.
+            Will you choose to cooperate or deceive?
+        </p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Your Strategies</h5>
+                <p class="card-text">Create and manage your game strategies.</p>
+                <a href="{% url 'strategy_list' %}" class="btn btn-primary">View Strategies</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Play Games</h5>
+                <p class="card-text">Start new games or view ongoing matches.</p>
+                <a href="{% url 'game_list' %}" class="btn btn-primary">View Games</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Leaderboard</h5>
+                <p class="card-text">See how your strategies rank against others.</p>
+                <a href="{% url 'leaderboard' %}" class="btn btn-primary">View Leaderboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if recent_games %}
+<div class="row mt-5">
+    <div class="col-12">
+        <h2>Recent Games</h2>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Strategy 1</th>
+                        <th>Strategy 2</th>
+                        <th>Status</th>
+                        <th>Score</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for game in recent_games %}
+                    <tr>
+                        <td>{{ game.strategy1.name }}</td>
+                        <td>{{ game.strategy2.name }}</td>
+                        <td>{{ game.status }}</td>
+                        <td>{{ game.player1_score }} - {{ game.player2_score }}</td>
+                        <td>{{ game.winner }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

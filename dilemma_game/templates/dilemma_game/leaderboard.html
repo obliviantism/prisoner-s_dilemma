@@ -1,0 +1,83 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Leaderboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Strategy Leaderboard</h1>
+
+        {% if strategy_stats %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Strategy</th>
+                                <th>Created By</th>
+                                <th>Games Played</th>
+                                <th>Total Score</th>
+                                <th>Average Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in strategy_stats %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ stat.strategy.name }}</td>
+                                <td>{{ stat.strategy.created_by.username }}</td>
+                                <td>{{ stat.total_games }}</td>
+                                <td>{{ stat.total_score }}</td>
+                                <td>{{ stat.avg_score|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            No games have been played yet.
+            <a href="{% url 'game_create' %}" class="alert-link">Start a new game</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">About the Scoring</h5>
+                <p class="card-text">
+                    Scores are calculated based on the following rules:
+                </p>
+                <ul class="mb-0">
+                    <li>Both Cooperate: 3 points each</li>
+                    <li>Both Deceive: 0 points each</li>
+                    <li>One Cooperates, One Deceives: 5 points for deceiver, 0 for cooperator</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Strategy Tips</h5>
+                <p class="card-text">
+                    Some successful strategies to consider:
+                </p>
+                <ul class="mb-0">
+                    <li>Tit for Tat: Copy opponent's last move</li>
+                    <li>Always Cooperate: Build trust and mutual benefit</li>
+                    <li>Grudger: Cooperate until deceived, then always deceive</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

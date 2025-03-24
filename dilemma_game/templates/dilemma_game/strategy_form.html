@@ -1,0 +1,69 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}{% if strategy %}Edit Strategy{% else %}Create Strategy{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title mb-4">
+                    {% if strategy %}Edit Strategy{% else %}Create New Strategy{% endif %}
+                </h2>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Strategy Name</label>
+                        <input type="text" class="form-control" id="name" name="name"
+                            value="{{ strategy.name|default:'' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                            required>{{ strategy.description|default:'' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Strategy Code</label>
+                        <div class="alert alert-info">
+                            <h6>Strategy Guidelines:</h6>
+                            <ul class="mb-0">
+                                <li>Your code should define a function that takes the game history as input</li>
+                                <li>Return 'C' for cooperate or 'D' for deceive</li>
+                                <li>Game history is a list of tuples (your_move, opponent_move)</li>
+                            </ul>
+                        </div>
+                        <textarea class="form-control font-monospace" id="code" name="code" rows="10"
+                            required>{{ strategy.code|default:"def make_move(history):\n    # Your strategy code here\n    return 'C'  # or 'D'" }}</textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'strategy_list' %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if strategy %}Update Strategy{% else %}Create Strategy{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add tab support in the code textarea
+    document.getElementById('code').addEventListener('keydown', function (e) {
+        if (e.key == 'Tab') {
+            e.preventDefault();
+            var start = this.selectionStart;
+            var end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + 4;
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Game Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>Game #{{ game.id }}</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        {% if game.status != 'COMPLETED' %}
+        <form method="post" action="{% url 'play_round' game.id %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">
+                Play Next Round
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Game Status</h5>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Status:</strong>
+                        <span
+                            class="badge {% if game.status == 'COMPLETED' %}bg-success{% else %}bg-primary{% endif %}">
+                            {{ game.status }}
+                        </span>
+                    </div>
+                    <div class="col-6">
+                        <strong>Current Round:</strong> {{ game.current_round }} / {{ game.total_rounds }}
+                    </div>
+                </div>
+                <div class="progress mt-3">
+                    <div class="progress-bar" role="progressbar"
+                        style="width: {% widthratio game.current_round game.total_rounds 100 %}%">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Score</h5>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3>{{ game.player1_score }}</h3>
+                        <p>{{ game.strategy1.name }}</p>
+                    </div>
+                    <div class="col-6">
+                        <h3>{{ game.player2_score }}</h3>
+                        <p>{{ game.strategy2.name }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Round History</h5>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Round</th>
+                        <th>{{ game.strategy1.name }}</th>
+                        <th>{{ game.strategy2.name }}</th>
+                        <th>Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for round in game.rounds.all %}
+                    <tr>
+                        <td>{{ round.round_number }}</td>
+                        <td>
+                            <span
+                                class="badge {% if round.player1_choice == 'C' %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if round.player1_choice == 'C' %}Cooperate{% else %}Deceive{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span
+                                class="badge {% if round.player2_choice == 'C' %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if round.player2_choice == 'C' %}Cooperate{% else %}Deceive{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ round.player1_score }} - {{ round.player2_score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

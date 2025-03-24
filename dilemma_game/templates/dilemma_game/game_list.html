@@ -1,0 +1,66 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}Games{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>Games</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'game_create' %}" class="btn btn-primary">
+            Start New Game
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    {% if games %}
+    {% for game in games %}
+    <div class="col-md-6 mb-4">
+        <div class="card game-card">
+            <div class="card-body">
+                <h5 class="card-title">Game #{{ game.id }}</h5>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <strong>Strategy 1:</strong><br>
+                        {{ game.strategy1.name }}
+                    </div>
+                    <div class="col-6">
+                        <strong>Strategy 2:</strong><br>
+                        {{ game.strategy2.name }}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <strong>Score:</strong><br>
+                        {{ game.player1_score }} - {{ game.player2_score }}
+                    </div>
+                    <div class="col-6">
+                        <strong>Status:</strong><br>
+                        <span
+                            class="badge {% if game.status == 'COMPLETED' %}bg-success{% else %}bg-primary{% endif %}">
+                            {{ game.status }}
+                        </span>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Round {{ game.current_round }} of {{ game.total_rounds }}</small>
+                    <a href="{% url 'game_detail' game.id %}" class="btn btn-outline-primary btn-sm">
+                        View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            No games found.
+            <a href="{% url 'game_create' %}" class="alert-link">Start a new game</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
