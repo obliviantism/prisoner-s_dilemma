@@ -6,53 +6,46 @@
           <div class="card-body">
             <h2 class="card-title mb-4 text-center">登录账户</h2>
             
-            <b-form @submit.prevent="handleLogin">
-              <b-form-group
-                label="用户名"
-                label-for="username"
-              >
-                <b-form-input
+            <form @submit.prevent="handleLogin">
+              <div class="form-group mb-3">
+                <label for="username">用户名</label>
+                <input
                   id="username"
                   v-model="form.username"
                   type="text"
+                  class="form-control"
                   required
                   placeholder="输入用户名"
-                ></b-form-input>
-              </b-form-group>
+                >
+              </div>
               
-              <b-form-group
-                label="密码"
-                label-for="password"
-              >
-                <b-form-input
+              <div class="form-group mb-3">
+                <label for="password">密码</label>
+                <input
                   id="password"
                   v-model="form.password"
                   type="password"
+                  class="form-control"
                   required
                   placeholder="输入密码"
-                ></b-form-input>
-              </b-form-group>
+                >
+              </div>
               
-              <b-alert
-                v-if="error"
-                variant="danger"
-                show
-              >
+              <div v-if="error" class="alert alert-danger">
                 {{ error }}
-              </b-alert>
+              </div>
               
               <div class="d-grid">
-                <b-button
+                <button
                   type="submit"
-                  variant="primary"
+                  class="btn btn-primary w-100"
                   :disabled="loading"
-                  class="w-100"
                 >
-                  <b-spinner v-if="loading" small></b-spinner>
+                  <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                   {{ loading ? '登录中...' : '登录' }}
-                </b-button>
+                </button>
               </div>
-            </b-form>
+            </form>
           </div>
         </div>
       </div>
@@ -61,10 +54,8 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
-
 export default {
-  name: 'Login',
+  name: 'LoginPage',
   data() {
     return {
       form: {
@@ -76,14 +67,12 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['login']),
-    
     async handleLogin() {
       this.loading = true
       this.error = null
       
       try {
-        await this.login({
+        await this.$store.dispatch('login', {
           username: this.form.username,
           password: this.form.password
         })
@@ -105,5 +94,7 @@ export default {
 <style scoped>
 .login {
   max-width: 100%;
+  margin: 0 auto;
+  padding: 20px;
 }
 </style> 

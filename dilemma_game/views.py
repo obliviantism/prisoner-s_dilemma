@@ -185,7 +185,7 @@ def leaderboard(request):
 
 # API视图
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated])
 def api_leaderboard(request):
     strategies = Strategy.objects.all()
     strategy_stats = []
