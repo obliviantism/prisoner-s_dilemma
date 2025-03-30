@@ -41,21 +41,16 @@ class GameViewSet(viewsets.ModelViewSet):
         strategy2 = get_object_or_404(Strategy, id=strategy2_id)
         
         game = GameService.create_game(strategy1, strategy2, total_rounds)
-        return Response(GameService.get_game_summary(game))
+        serializer = self.get_serializer(game)
+        return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
     def play_round(self, request, pk=None):
         game = self.get_object()
         try:
-            round = GameService.play_round(game)
-            return Response({
-                'round': round.round_number,
-                'player1_choice': round.player1_choice,
-                'player2_choice': round.player2_choice,
-                'player1_score': round.player1_score,
-                'player2_score': round.player2_score,
-                'game_status': game.status
-            })
+            GameService.play_round(game)
+            serializer = self.get_serializer(game)
+            return Response(serializer.data)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -65,7 +60,8 @@ class GameViewSet(viewsets.ModelViewSet):
         try:
             while game.current_round < game.total_rounds:
                 GameService.play_round(game)
-            return Response(GameService.get_game_summary(game))
+            serializer = self.get_serializer(game)
+            return Response(serializer.data)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -17,8 +17,8 @@
           <div class="row">
             <div class="col-md-6">
               <p><strong>游戏ID:</strong> {{ game.id }}</p>
-              <p><strong>策略1:</strong> {{ game.strategy1_name }}</p>
-              <p><strong>策略2:</strong> {{ game.strategy2_name }}</p>
+              <p><strong>策略1:</strong> {{ game.strategy1 ? game.strategy1.name : '未知策略' }}</p>
+              <p><strong>策略2:</strong> {{ game.strategy2 ? game.strategy2.name : '未知策略' }}</p>
             </div>
             <div class="col-md-6">
               <p><strong>状态:</strong> {{ formatStatus(game.status) }}</p>
@@ -37,13 +37,13 @@
           <div class="row">
             <div class="col-md-6">
               <div class="text-center">
-                <h6>{{ game.strategy1_name }}</h6>
+                <h6>{{ game.strategy1 ? game.strategy1.name : '未知策略' }}</h6>
                 <h2>{{ game.player1_score }}</h2>
               </div>
             </div>
             <div class="col-md-6">
               <div class="text-center">
-                <h6>{{ game.strategy2_name }}</h6>
+                <h6>{{ game.strategy2 ? game.strategy2.name : '未知策略' }}</h6>
                 <h2>{{ game.player2_score }}</h2>
               </div>
             </div>
@@ -85,10 +85,10 @@
               <thead>
                 <tr>
                   <th>回合</th>
-                  <th>{{ game.strategy1_name }} 选择</th>
-                  <th>{{ game.strategy2_name }} 选择</th>
-                  <th>{{ game.strategy1_name }} 得分</th>
-                  <th>{{ game.strategy2_name }} 得分</th>
+                  <th>{{ game.strategy1 ? game.strategy1.name : '未知策略' }} 选择</th>
+                  <th>{{ game.strategy2 ? game.strategy2.name : '未知策略' }} 选择</th>
+                  <th>{{ game.strategy1 ? game.strategy1.name : '未知策略' }} 得分</th>
+                  <th>{{ game.strategy2 ? game.strategy2.name : '未知策略' }} 得分</th>
                 </tr>
               </thead>
               <tbody>

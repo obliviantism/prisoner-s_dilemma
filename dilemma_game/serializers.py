@@ -20,6 +20,8 @@ class RoundSerializer(serializers.ModelSerializer):
 
 class GameSerializer(serializers.ModelSerializer):
     rounds = RoundSerializer(many=True, read_only=True)
+    strategy1 = StrategySerializer(read_only=True)
+    strategy2 = StrategySerializer(read_only=True)
     
     class Meta:
         model = Game

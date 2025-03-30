@@ -1,3 +1,24 @@
-Django>=5.1.7
-python-dotenv>=1.0.0
-djangorestframework>=3.14.0
+# Django 基础框架
+Django==4.2.3
+djangorestframework==3.14.0
+django-cors-headers==4.1.0
+
+# 认证相关
+djangorestframework-simplejwt==5.2.2
+
+# 数据库连接（根据实际使用的数据库选择）
+# psycopg2-binary==2.9.6  # PostgreSQL
+# mysqlclient==2.1.1  # MySQL
+
+# 开发与工具
+python-dotenv==1.0.0
+whitenoise==6.5.0  # 用于静态文件服务
+gunicorn==20.1.0  # 生产环境WSGI服务器
+
+# API文档
+drf-yasg==1.21.5
+
+# 其他工具
+Pillow==9.5.0  # 图像处理（如有需要）
+requests==2.31.0
+urllib3==2.0.3
