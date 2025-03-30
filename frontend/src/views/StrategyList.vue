@@ -8,9 +8,7 @@
     </div>
 
     <div v-if="loading" class="text-center">
-      <div class="spinner-border" role="status">
-        <span class="sr-only">加载中...</span>
-      </div>
+      <loading-spinner text="策略加载中..." />
     </div>
 
     <div v-else-if="strategies.length === 0" class="alert alert-info">
@@ -34,8 +32,13 @@
 </template>
 
 <script>
+import LoadingSpinner from '../components/LoadingSpinner.vue';
+
 export default {
   name: 'StrategyListView',
+  components: {
+    LoadingSpinner
+  },
   data() {
     return {
       strategies: [],

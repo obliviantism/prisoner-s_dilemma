@@ -4,9 +4,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.contrib.auth.models import User
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 from .models import Strategy, Game, Round
 from .services import GameService
 from .serializers import StrategySerializer, GameSerializer
@@ -214,3 +216,44 @@ def api_leaderboard(request):
     strategy_stats.sort(key=lambda x: x['avg_score'], reverse=True)
     
     return Response(strategy_stats)
+
+# 获取当前用户API
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def current_user(request):
+    """
+    获取当前登录用户的信息
+    """
+    return Response({
+        'id': request.user.id,
+        'username': request.user.username,
+        'email': request.user.email
+    })
+
+# 用户注册API
+@api_view(['POST'])
+def register_user(request):
+    username = request.data.get('username')
+    email = request.data.get('email')
+    password = request.data.get('password')
+    
+    if not username or not password:
+        return Response({'error': '用户名和密码是必须的'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if User.objects.filter(username=username).exists():
+        return Response({'error': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if email and User.objects.filter(email=email).exists():
+        return Response({'error': '该邮箱已被注册'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = User.objects.create_user(username=username, email=email, password=password)
+    token = Token.objects.create(user=user)
+    
+    return Response({
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email
+        },
+        'message': '注册成功'
+    }, status=status.HTTP_201_CREATED)

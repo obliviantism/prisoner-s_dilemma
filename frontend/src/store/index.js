@@ -71,12 +71,51 @@ export default createStore({
     },
     actions: {
         // 身份验证
-        async login({ commit }, credentials) {
+        async login({ commit, dispatch }, credentials) {
             const response = await axios.post('auth/login/', credentials)
             const token = response.data.token
             localStorage.setItem('token', token)
-            commit('setUser', response.data.user)
+
+            // 如果响应中直接包含用户信息，则使用该信息
+            if (response.data.user) {
+                commit('setUser', response.data.user)
+            } else {
+                // 否则获取当前用户信息
+                await dispatch('getCurrentUser')
+            }
+
             return response
+        },
+        async getCurrentUser({ commit }) {
+            try {
+                const response = await axios.get('auth/user/')
+                commit('setUser', response.data)
+                return response.data
+            } catch (error) {
+                console.error('获取用户信息失败:', error)
+                // 如果获取用户信息失败，清除token并登出
+                localStorage.removeItem('token')
+                commit('setUser', null)
+                throw error
+            }
+        },
+        // eslint-disable-next-line no-unused-vars
+        async restoreSession({ commit, dispatch }) {
+            const token = localStorage.getItem('token')
+            if (token) {
+                try {
+                    await dispatch('getCurrentUser')
+                    return true
+                } catch (error) {
+                    return false
+                }
+            }
+            return false
+        },
+        // eslint-disable-next-line no-unused-vars
+        async register({ commit }, userData) {
+            const response = await axios.post('auth/register/', userData)
+            return response.data
         },
         logout({ commit }) {
             localStorage.removeItem('token')
@@ -87,6 +126,10 @@ export default createStore({
         async fetchStrategies({ commit }) {
             const response = await axios.get('strategies/')
             commit('setStrategies', response.data)
+            return response.data
+        },
+        async fetchStrategy(_, id) {
+            const response = await axios.get(`strategies/${id}/`)
             return response.data
         },
         async createStrategy({ commit }, strategyData) {

@@ -2,9 +2,11 @@
   <div class="home">
     <div class="row">
       <div class="col-md-8 offset-md-2 text-center">
-        <h1 class="display-4 mb-4">欢迎来到囚徒困境</h1>
+        <h1 class="display-4 mb-4">囚徒困境</h1>
         <p class="lead mb-4">
           测试您的策略在这个经典的合作与欺骗博弈中的表现。
+        </p>
+        <p class="lead mb-4">          
           您会选择合作还是欺骗？
         </p>
       </div>
@@ -35,6 +37,45 @@
             <h5 class="card-title">排行榜</h5>
             <p class="card-text">查看您的策略与其他人相比的排名。</p>
             <router-link to="/leaderboard" class="btn btn-primary">查看排行榜</router-link>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 加载中状态 -->
+    <div v-if="isLoading" class="my-5">
+      <loading-spinner text="数据加载中..." />
+    </div>
+
+    <!-- 排行榜信息 -->
+    <div class="row mt-5" v-else-if="topStrategies.length > 0">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">策略排行榜</h2>
+            <router-link to="/leaderboard" class="btn btn-sm btn-outline-primary">查看完整排行榜</router-link>
+          </div>
+          <div class="card-body">
+            <table class="table table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>排名</th>
+                  <th>策略名称</th>
+                  <th>创建者</th>
+                  <th>游戏数</th>
+                  <th>平均得分</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(strategy, index) in topStrategies" :key="strategy.strategy_id">
+                  <td><strong>{{ index + 1 }}</strong></td>
+                  <td>{{ strategy.strategy_name }}</td>
+                  <td>{{ strategy.created_by }}</td>
+                  <td>{{ strategy.total_games }}</td>
+                  <td>{{ strategy.avg_score.toFixed(2) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -78,11 +119,19 @@
 </template>
 
 <script>
+import { mapActions, mapGetters } from 'vuex';
+import LoadingSpinner from '../components/LoadingSpinner.vue';
+
 export default {
   name: 'HomePage',
+  components: {
+    LoadingSpinner
+  },
   data() {
     return {
       recentGames: [],
+      topStrategies: [],
+      isLoading: false,
       fields: [
         { key: 'strategy1', label: '策略1' },
         { key: 'strategy2', label: '策略2' },
@@ -93,11 +142,25 @@ export default {
       ]
     }
   },
+  computed: {
+    ...mapGetters(['isAuthenticated'])
+  },
+  methods: {
+    ...mapActions(['fetchGames', 'fetchLeaderboard']),
+    determineWinner(game) {
+      if (game.status !== 'COMPLETED') return '进行中'
+      if (game.player1_score > game.player2_score) return game.strategy1.name
+      if (game.player2_score > game.player1_score) return game.strategy2.name
+      return '平局'
+    }
+  },
   async mounted() {
     if (localStorage.getItem('token')) {
+      this.isLoading = true;
       try {
-        const response = await this.$store.dispatch('fetchGames')
-        this.recentGames = response.slice(0, 5).map(game => ({
+        // 获取最近游戏
+        const gamesResponse = await this.fetchGames();
+        this.recentGames = gamesResponse.slice(0, 5).map(game => ({
           game_id: game.id,
           strategy1_name: game.strategy1.name,
           strategy2_name: game.strategy2.name,
@@ -105,18 +168,16 @@ export default {
           player1_score: game.player1_score,
           player2_score: game.player2_score,
           winner: this.determineWinner(game)
-        }))
+        }));
+
+        // 获取排行榜数据
+        const leaderboardResponse = await this.fetchLeaderboard();
+        this.topStrategies = leaderboardResponse.slice(0, 5); // 只显示前5名
       } catch (error) {
-        console.error('Error fetching recent games', error)
+        console.error('Error fetching data', error);
+      } finally {
+        this.isLoading = false;
       }
-    }
-  },
-  methods: {
-    determineWinner(game) {
-      if (game.status !== 'COMPLETED') return '进行中'
-      if (game.player1_score > game.player2_score) return game.strategy1.name
-      if (game.player2_score > game.player1_score) return game.strategy2.name
-      return '平局'
     }
   }
 }

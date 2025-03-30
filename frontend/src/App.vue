@@ -1,50 +1,69 @@
 <template>
   <div id="app">
-    <b-navbar toggleable="lg" type="dark" variant="dark">
-      <b-container>
-        <b-navbar-brand to="/">囚徒困境</b-navbar-brand>
-        <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="container">
+        <router-link class="navbar-brand" to="/">囚徒困境</router-link>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="切换导航">
+          <span class="navbar-toggler-icon"></span>
+        </button>
         
-        <b-collapse id="nav-collapse" is-nav>
-          <b-navbar-nav v-if="isAuthenticated">
-            <b-nav-item to="/strategies">策略</b-nav-item>
-            <b-nav-item to="/games">游戏</b-nav-item>
-            <b-nav-item to="/leaderboard">排行榜</b-nav-item>
-          </b-navbar-nav>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav" v-if="isAuthenticated">
+            <li class="nav-item">
+              <router-link class="nav-link" to="/strategies">策略</router-link>
+            </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/games">游戏</router-link>
+            </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/leaderboard">排行榜</router-link>
+            </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/history">历史记录</router-link>
+            </li>
+          </ul>
           
-          <b-navbar-nav class="ml-auto" v-if="isAuthenticated">
-            <b-nav-item-dropdown right>
-              <template #button-content>
-                <b-icon icon="person-fill"></b-icon> {{ currentUser ? currentUser.username : '用户' }}
-              </template>
-              <b-dropdown-item @click="logout">退出登录</b-dropdown-item>
-            </b-nav-item-dropdown>
-          </b-navbar-nav>
+          <!-- 已登录用户菜单 -->
+          <ul class="navbar-nav ms-auto" v-if="isAuthenticated">
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                {{ currentUser ? currentUser.username : '用户' }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                <li><a class="dropdown-item" href="#" @click.prevent="handleLogout">退出登录</a></li>
+              </ul>
+            </li>
+          </ul>
           
-          <b-navbar-nav class="ml-auto" v-else>
-            <b-nav-item to="/login">登录</b-nav-item>
-          </b-navbar-nav>
-        </b-collapse>
-      </b-container>
-    </b-navbar>
+          <!-- 未登录用户菜单 -->
+          <ul class="navbar-nav ms-auto" v-else>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/login">登录</router-link>
+            </li>
+            <li class="nav-item">
+              <router-link class="nav-link" to="/register">注册</router-link>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
     
-    <b-container class="py-4">
-      <b-alert
-        v-model="showAlert"
-        dismissible
-        fade
-        :variant="alertVariant"
-      >
+    <div class="container py-4">
+      <div class="alert alert-dismissible fade show" 
+           :class="'alert-' + alertVariant" 
+           v-if="showAlert" 
+           role="alert">
         {{ alertMessage }}
-      </b-alert>
+        <button type="button" class="btn-close" @click="showAlert = false" aria-label="关闭"></button>
+      </div>
       
       <router-view @alert="showGlobalAlert"></router-view>
-    </b-container>
+    </div>
   </div>
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex'
+import { mapActions } from 'vuex';
 
 export default {
   name: 'App',
@@ -52,20 +71,42 @@ export default {
     return {
       showAlert: false,
       alertMessage: '',
-      alertVariant: 'info'
+      alertVariant: 'info',
+      sessionChecked: false
     }
   },
   computed: {
-    ...mapGetters(['isAuthenticated', 'currentUser'])
+    isAuthenticated() {
+      return this.$store.getters.isAuthenticated
+    },
+    currentUser() {
+      return this.$store.getters.currentUser
+    }
   },
   methods: {
-    ...mapActions(['logout']),
-    
+    ...mapActions(['restoreSession', 'logout']),
+    async checkSession() {
+      try {
+        await this.restoreSession();
+      } catch (error) {
+        console.error('恢复会话失败:', error);
+      } finally {
+        this.sessionChecked = true;
+      }
+    },
+    handleLogout() {
+      this.logout();
+      this.$router.push('/login');
+      this.showGlobalAlert('已成功退出登录', 'success');
+    },
     showGlobalAlert(message, variant = 'info') {
-      this.alertMessage = message
-      this.alertVariant = variant
-      this.showAlert = true
+      this.alertMessage = message;
+      this.alertVariant = variant;
+      this.showAlert = true;
     }
+  },
+  async created() {
+    await this.checkSession();
   }
 }
 </script>
@@ -77,9 +118,5 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
   min-height: 100vh;
-}
-
-.ml-auto {
-  margin-left: auto !important;
 }
 </style>

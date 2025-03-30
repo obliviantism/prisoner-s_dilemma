@@ -1,12 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Login from '../views/Login.vue'
+import Register from '../views/Register.vue'
 import StrategyList from '../views/StrategyList.vue'
 import StrategyForm from '../views/StrategyForm.vue'
 import GameList from '../views/GameList.vue'
 import GameForm from '../views/GameForm.vue'
 import GameDetail from '../views/GameDetail.vue'
 import Leaderboard from '../views/Leaderboard.vue'
+import History from '../views/History.vue'
 
 const routes = [
     {
@@ -18,6 +20,11 @@ const routes = [
         path: '/login',
         name: 'Login',
         component: Login
+    },
+    {
+        path: '/register',
+        name: 'Register',
+        component: Register
     },
     {
         path: '/strategies',
@@ -59,6 +66,12 @@ const routes = [
         path: '/leaderboard',
         name: 'Leaderboard',
         component: Leaderboard,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/history',
+        name: 'History',
+        component: History,
         meta: { requiresAuth: true }
     }
 ]

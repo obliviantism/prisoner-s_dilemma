@@ -8,8 +8,15 @@
       </div>
     </div>
     
+    <div v-else-if="loadError" class="alert alert-danger">
+      {{ loadError }}
+      <div class="mt-3">
+        <router-link to="/strategies" class="btn btn-primary">返回策略列表</router-link>
+      </div>
+    </div>
+    
     <form v-else @submit.prevent="submitStrategy">
-      <div class="form-group">
+      <div class="form-group mb-3">
         <label for="name">策略名称</label>
         <input 
           type="text" 
@@ -20,7 +27,7 @@
         >
       </div>
       
-      <div class="form-group">
+      <div class="form-group mb-3">
         <label for="description">描述</label>
         <textarea 
           class="form-control" 
@@ -30,7 +37,7 @@
         ></textarea>
       </div>
       
-      <div class="form-group">
+      <div class="form-group mb-3">
         <label for="code">策略代码</label>
         <textarea 
           class="form-control code-editor" 
@@ -44,11 +51,15 @@
         </small>
       </div>
       
+      <div v-if="saveError" class="alert alert-danger mb-3">
+        {{ saveError }}
+      </div>
+      
       <div class="form-group">
         <button type="submit" class="btn btn-primary" :disabled="saving">
           {{ saving ? '保存中...' : '保存策略' }}
         </button>
-        <router-link to="/strategies" class="btn btn-outline-secondary ml-2">
+        <router-link to="/strategies" class="btn btn-outline-secondary ms-2">
           取消
         </router-link>
       </div>
@@ -67,7 +78,9 @@ export default {
         code: ''
       },
       loading: false,
-      saving: false
+      saving: false,
+      loadError: null,
+      saveError: null
     }
   },
   computed: {
@@ -84,11 +97,24 @@ export default {
     async loadStrategy() {
       try {
         this.loading = true
+        this.loadError = null
+        
         const strategyId = this.$route.params.id
-        const response = await this.$store.dispatch('fetchStrategy', strategyId)
-        this.strategy = response
+        const data = await this.$store.dispatch('fetchStrategy', strategyId)
+        
+        if (!data || !data.name) {
+          throw new Error('获取到的策略数据无效')
+        }
+        
+        this.strategy = {
+          name: data.name || '',
+          description: data.description || '',
+          code: data.code || ''
+        }
       } catch (error) {
-        this.$store.commit('setError', '获取策略失败: ' + error.message)
+        console.error('加载策略失败:', error)
+        this.loadError = `获取策略失败: ${error.message || '未知错误'}`
+        this.$store.commit('setError', this.loadError)
       } finally {
         this.loading = false
       }
@@ -96,6 +122,8 @@ export default {
     async submitStrategy() {
       try {
         this.saving = true
+        this.saveError = null
+        
         if (this.isEditing) {
           await this.$store.dispatch('updateStrategy', {
             id: this.$route.params.id,
@@ -104,9 +132,12 @@ export default {
         } else {
           await this.$store.dispatch('createStrategy', this.strategy)
         }
+        
         this.$router.push('/strategies')
       } catch (error) {
-        this.$store.commit('setError', '保存策略失败: ' + error.message)
+        console.error('保存策略失败:', error)
+        this.saveError = `保存策略失败: ${error.message || '未知错误'}`
+        this.$store.commit('setError', this.saveError)
       } finally {
         this.saving = false
       }
