@@ -52,6 +52,9 @@ export default createStore({
                 state.strategies.splice(index, 1, updatedStrategy)
             }
         },
+        removeStrategy(state, strategyId) {
+            state.strategies = state.strategies.filter(strategy => strategy.id !== strategyId)
+        },
         setGames(state, games) {
             state.games = games
         },
@@ -141,6 +144,11 @@ export default createStore({
             const response = await axios.put(`strategies/${id}/`, strategyData)
             commit('updateStrategy', response.data)
             return response.data
+        },
+        async deleteStrategy({ commit }, id) {
+            await axios.delete(`strategies/${id}/`)
+            commit('removeStrategy', id)
+            return true
         },
 
         // 游戏

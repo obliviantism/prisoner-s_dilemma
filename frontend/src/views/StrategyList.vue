@@ -21,9 +21,35 @@
           <h5 class="card-title">{{ strategy.name }}</h5>
           <p class="card-text">{{ strategy.description }}</p>
           <div class="card-actions">
-            <router-link :to="`/strategies/${strategy.id}/edit`" class="btn btn-sm btn-outline-primary mr-2">
+            <router-link :to="`/strategies/${strategy.id}/edit`" class="btn btn-sm btn-outline-primary me-2">
               编辑
             </router-link>
+            <button @click="confirmDelete(strategy)" class="btn btn-sm btn-outline-danger">
+              删除
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认删除对话框 -->
+    <div v-if="showDeleteConfirm" class="modal fade show" tabindex="-1" 
+         style="display: block; background-color: rgba(0,0,0,0.5);">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">确认删除</h5>
+            <button type="button" class="btn-close" @click="cancelDelete"></button>
+          </div>
+          <div class="modal-body">
+            <p>您确定要删除策略 "{{ strategyToDelete ? strategyToDelete.name : '' }}" 吗？</p>
+            <p class="text-danger">此操作不可逆，所有关联的游戏记录将保持不变。</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="cancelDelete">取消</button>
+            <button type="button" class="btn btn-danger" @click="deleteStrategy" :disabled="deleting">
+              {{ deleting ? '删除中...' : '确认删除' }}
+            </button>
           </div>
         </div>
       </div>
@@ -42,7 +68,10 @@ export default {
   data() {
     return {
       strategies: [],
-      loading: true
+      loading: true,
+      showDeleteConfirm: false,
+      strategyToDelete: null,
+      deleting: false
     }
   },
   created() {
@@ -59,6 +88,30 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    confirmDelete(strategy) {
+      this.strategyToDelete = strategy
+      this.showDeleteConfirm = true
+    },
+    cancelDelete() {
+      this.showDeleteConfirm = false
+      this.strategyToDelete = null
+    },
+    async deleteStrategy() {
+      if (!this.strategyToDelete) return
+      
+      try {
+        this.deleting = true
+        await this.$store.dispatch('deleteStrategy', this.strategyToDelete.id)
+        // 刷新策略列表
+        await this.fetchStrategies()
+        this.showDeleteConfirm = false
+        this.strategyToDelete = null
+      } catch (error) {
+        this.$store.commit('setError', '删除策略失败: ' + error.message)
+      } finally {
+        this.deleting = false
+      }
     }
   }
 }
@@ -74,6 +127,12 @@ export default {
 .strategy-cards {
   display: grid;
   gap: 20px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 10px;
 }
 
 @media (min-width: 768px) {

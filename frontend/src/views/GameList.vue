@@ -33,8 +33,8 @@
         <tbody>
           <tr v-for="game in games" :key="game.id">
             <td>{{ game.id }}</td>
-            <td>{{ game.strategy1_name }}</td>
-            <td>{{ game.strategy2_name }}</td>
+            <td>{{ game.strategy1 ? game.strategy1.name : '未知策略' }}</td>
+            <td>{{ game.strategy2 ? game.strategy2.name : '未知策略' }}</td>
             <td>{{ game.current_round }} / {{ game.total_rounds }}</td>
             <td>{{ formatStatus(game.status) }}</td>
             <td>{{ formatDate(game.created_at) }}</td>

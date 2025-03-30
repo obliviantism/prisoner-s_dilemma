@@ -39,16 +39,45 @@
       
       <div class="form-group mb-3">
         <label for="code">策略代码</label>
+        <div class="alert alert-info">
+          <h5>策略代码说明</h5>
+          <p>您需要编写一个名为<code>make_move</code>的函数，该函数接收一个参数：</p>
+          <ul>
+            <li><code>opponent_history</code>：列表，包含对手之前的选择 ('C' 或 'D')</li>
+          </ul>
+          <p>函数必须返回 'C'（合作）或 'D'（背叛）。</p>
+          <p>例如：</p>
+          <pre class="bg-light p-2">
+def make_move(opponent_history):
+    """
+    根据对手历史选择决定下一步行动
+    
+    :param opponent_history: 对手历史选择的列表，例如 ['C', 'D', 'C']
+    :return: 'C' 表示合作，'D' 表示背叛
+    """
+    if not opponent_history:  # 第一轮
+        return 'C'  # 首轮选择合作
+    
+    # 后续回合的策略逻辑
+    if opponent_history[-1] == 'D':
+        return 'D'  # 如果对手上一轮背叛，则背叛
+    return 'C'  # 否则选择合作
+</pre>
+        </div>
         <textarea 
           class="form-control code-editor" 
           id="code" 
           v-model="strategy.code" 
-          rows="10"
+          rows="15"
           required
         ></textarea>
         <small class="form-text text-muted">
-          编写Python代码实现囚徒困境策略。函数应返回'C'（合作）或'D'（背叛）。
+          请确保您的代码包含一个名为<code>make_move</code>的函数，且该函数接受一个参数<code>opponent_history</code>。
         </small>
+      </div>
+
+      <div class="form-group mb-3">
+        <button type="button" class="btn btn-outline-secondary mb-2" @click="insertTemplate">插入标准模板</button>
       </div>
       
       <div v-if="saveError" class="alert alert-danger mb-3">
@@ -77,6 +106,23 @@ export default {
         description: '',
         code: ''
       },
+      templateCode: `def make_move(opponent_history):
+    """
+    根据对手历史选择决定下一步行动
+    
+    :param opponent_history: 对手历史选择的列表，例如 ['C', 'D', 'C']
+    :return: 'C' 表示合作，'D' 表示背叛
+    """
+    # 在这里编写您的策略逻辑
+    if not opponent_history:  # 第一轮
+        return 'C'  # 首轮选择合作
+    
+    # 这只是一个示例策略，您可以根据需要修改
+    # 以下策略为: 如果对手上一轮背叛，则背叛；否则合作
+    if opponent_history[-1] == 'D':
+        return 'D'
+    return 'C'
+`,
       loading: false,
       saving: false,
       loadError: null,
@@ -91,9 +137,15 @@ export default {
   created() {
     if (this.isEditing) {
       this.loadStrategy()
+    } else {
+      // 新建策略时，默认使用模板代码
+      this.strategy.code = this.templateCode
     }
   },
   methods: {
+    insertTemplate() {
+      this.strategy.code = this.templateCode
+    },
     async loadStrategy() {
       try {
         this.loading = true
@@ -123,6 +175,11 @@ export default {
       try {
         this.saving = true
         this.saveError = null
+        
+        // 检查代码是否包含make_move函数
+        if (!this.strategy.code.includes('def make_move(')) {
+          throw new Error('策略代码必须包含名为make_move的函数')
+        }
         
         if (this.isEditing) {
           await this.$store.dispatch('updateStrategy', {
@@ -155,5 +212,10 @@ export default {
 
 .code-editor {
   font-family: monospace;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 </style> 
