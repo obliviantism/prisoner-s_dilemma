@@ -64,22 +64,33 @@ def make_move(opponent_history):
     return 'C'  # 否则选择合作
 </pre>
         </div>
-        <textarea 
-          class="form-control code-editor" 
-          id="code" 
-          v-model="strategy.code" 
-          rows="15"
-          required
-        ></textarea>
-        <small class="form-text text-muted">
+        
+        <!-- 增强的代码编辑器 -->
+        <div class="editor-container">
+          <!-- 高亮显示层 -->
+          <pre class="highlight-layer" v-html="highlightedCode"></pre>
+          
+          <!-- 实际编辑层 -->
+          <textarea 
+            ref="codeTextarea"
+            class="code-editor" 
+            v-model="strategy.code"
+            @input="updateHighlight"
+            @scroll="syncScroll"
+            @keydown="handleKeyDown"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            rows="15"
+          ></textarea>
+        </div>
+        
+        <small class="form-text text-muted mt-2">
           请确保您的代码包含一个名为<code>make_move</code>的函数，且该函数接受一个参数<code>opponent_history</code>。
         </small>
       </div>
 
-      <div class="form-group mb-3">
-        <button type="button" class="btn btn-outline-secondary mb-2" @click="insertTemplate">插入标准模板</button>
-      </div>
-      
       <div v-if="saveError" class="alert alert-danger mb-3">
         {{ saveError }}
       </div>
@@ -97,6 +108,13 @@ def make_move(opponent_history):
 </template>
 
 <script>
+import hljs from 'highlight.js/lib/core';
+import python from 'highlight.js/lib/languages/python';
+import 'highlight.js/styles/atom-one-dark.css';
+
+// 注册Python语言
+hljs.registerLanguage('python', python);
+
 export default {
   name: 'StrategyFormView',
   data() {
@@ -123,6 +141,7 @@ export default {
         return 'D'
     return 'C'
 `,
+      highlightedCode: '',
       loading: false,
       saving: false,
       loadError: null,
@@ -134,18 +153,122 @@ export default {
       return this.$route.params.id !== undefined
     }
   },
-  created() {
+  watch: {
+    'strategy.code': {
+      immediate: true,
+      handler() {
+        this.updateHighlight();
+      }
+    }
+  },
+  mounted() {
     if (this.isEditing) {
       this.loadStrategy()
     } else {
       // 新建策略时，默认使用模板代码
-      this.strategy.code = this.templateCode
+      this.strategy.code = this.templateCode;
     }
+    
+    // 初始化语法高亮
+    this.updateHighlight();
   },
   methods: {
-    insertTemplate() {
-      this.strategy.code = this.templateCode
+    // 更新语法高亮
+    updateHighlight() {
+      const code = this.strategy.code || '';
+      try {
+        const highlighted = hljs.highlight(code, { language: 'python' }).value;
+        this.highlightedCode = highlighted;
+      } catch (e) {
+        console.error('高亮处理错误:', e);
+        this.highlightedCode = this.escapeHtml(code);
+      }
     },
+    
+    // 同步滚动位置
+    syncScroll() {
+      const textarea = this.$refs.codeTextarea;
+      const highlightPre = textarea.previousElementSibling;
+      highlightPre.scrollTop = textarea.scrollTop;
+      highlightPre.scrollLeft = textarea.scrollLeft;
+    },
+    
+    // 处理按键事件
+    handleKeyDown(e) {
+      // 处理Tab键
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        
+        // 插入Tab缩进（4个空格）
+        const spaces = '    ';
+        if (start === end) {
+          // 无选择时，插入Tab
+          this.strategy.code = this.strategy.code.substring(0, start) + spaces + this.strategy.code.substring(end);
+          this.$nextTick(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + spaces.length;
+          });
+        } else {
+          // 有选择时，缩进选中的行
+          const selectedLines = this.strategy.code.substring(start, end).split('\n');
+          const startLinePos = this.strategy.code.substring(0, start).lastIndexOf('\n') + 1;
+          let endLinePos = end + this.strategy.code.substring(end).indexOf('\n');
+          if (endLinePos === -1) endLinePos = this.strategy.code.length;
+          
+          // 为每行添加缩进
+          const indentedText = selectedLines.map(line => spaces + line).join('\n');
+          this.strategy.code = this.strategy.code.substring(0, startLinePos) + 
+                            indentedText + 
+                            this.strategy.code.substring(endLinePos);
+          
+          // 更新选择范围
+          this.$nextTick(() => {
+            textarea.selectionStart = startLinePos;
+            textarea.selectionEnd = startLinePos + indentedText.length;
+          });
+        }
+      } else if (e.key === 'Enter') {
+        // 处理回车键，保持缩进
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        
+        // 获取当前行缩进
+        const currentLine = this.strategy.code.substring(0, start).split('\n').pop();
+        const indentMatch = currentLine.match(/^(\s*)/);
+        const indent = indentMatch ? indentMatch[1] : '';
+        
+        // 检测是否需要额外缩进（如冒号结尾）
+        const extraIndent = currentLine.trim().endsWith(':') ? '    ' : '';
+        
+        // 插入换行和缩进
+        this.strategy.code = this.strategy.code.substring(0, start) + 
+                           '\n' + indent + extraIndent + 
+                           this.strategy.code.substring(textarea.selectionEnd);
+        
+        // 设置光标位置
+        this.$nextTick(() => {
+          const newPos = start + 1 + indent.length + extraIndent.length;
+          textarea.selectionStart = textarea.selectionEnd = newPos;
+        });
+      }
+      
+      // 延迟更新高亮代码
+      this.$nextTick(this.updateHighlight);
+    },
+    
+    // HTML转义
+    escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    },
+    
     async loadStrategy() {
       try {
         this.loading = true
@@ -171,6 +294,7 @@ export default {
         this.loading = false
       }
     },
+    
     async submitStrategy() {
       try {
         this.saving = true
@@ -193,7 +317,7 @@ export default {
         this.$router.push('/strategies')
       } catch (error) {
         console.error('保存策略失败:', error)
-        this.saveError = `保存策略失败: ${error.message || '未知错误'}`
+        this.saveError = `保存策略失败: ${error.message || '未知错误'}`;
         this.$store.commit('setError', this.saveError)
       } finally {
         this.saving = false
@@ -210,12 +334,65 @@ export default {
   padding: 20px;
 }
 
+/* 代码编辑器容器 */
+.editor-container {
+  position: relative;
+  height: 400px;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 高亮层 */
+.highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 10px;
+  font-family: 'Fira Code', Consolas, Monaco, 'Andale Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: auto;
+  background-color: #282c34;
+  color: #abb2bf;
+  pointer-events: none;
+  white-space: pre;
+  z-index: 1;
+}
+
+/* 编辑层 */
 .code-editor {
-  font-family: monospace;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 1px solid #444;
+  padding: 10px;
+  font-family: 'Fira Code', Consolas, Monaco, 'Andale Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: transparent;
+  color: transparent;
+  caret-color: white;
+  resize: none;
+  z-index: 2;
+  tab-size: 4;
+  outline: none;
+}
+
+.code-editor:focus {
+  border-color: #6495ED;
+  box-shadow: 0 0 0 0.25rem rgba(100, 149, 237, 0.25);
 }
 
 pre {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-</style> 
+</style>
