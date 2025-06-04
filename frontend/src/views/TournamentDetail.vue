@@ -5,7 +5,20 @@
     </div>
     
     <div v-else-if="error" class="alert alert-danger">
-      {{ error }}
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>获取锦标赛详情失败</h4>
+          <p class="mb-0">{{ error }}</p>
+        </div>
+        <div>
+          <button @click="fetchTournament" class="btn btn-outline-danger me-2">
+            <i class="bi bi-arrow-clockwise me-1"></i>重试
+          </button>
+          <router-link to="/tournaments" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left me-1"></i>返回列表
+          </router-link>
+        </div>
+      </div>
     </div>
     
     <div v-else>
@@ -50,7 +63,14 @@
                       {{ getStatusText(tournament.status) }}
                     </span>
                   </p>
-                  <p><strong>每场比赛回合数：</strong> {{ tournament.rounds_per_match }}</p>
+                  <p><strong>每场比赛回合数：</strong> 
+                    <span v-if="tournament.use_random_rounds">
+                      随机 ({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
+                    </span>
+                    <span v-else>
+                      固定 ({{ tournament.rounds_per_match }})
+                    </span>
+                  </p>
                   <p><strong>重复次数：</strong> {{ tournament.repetitions }}</p>
                 </div>
                 <div class="col-md-6">
@@ -240,7 +260,17 @@ export default {
         await this.$store.dispatch('fetchTournament', this.$route.params.id)
       } catch (error) {
         console.error('获取锦标赛详情失败:', error)
-        this.error = '获取锦标赛详情失败，请重试'
+        // 如果有具体错误消息，则显示它，否则使用默认消息
+        this.error = error.message || '获取锦标赛详情失败，请重试'
+        
+        // 如果是404错误（找不到锦标赛），提供更友好的提示并添加返回按钮
+        if (error.message && error.message.includes('找不到指定的锦标赛')) {
+          this.error = '找不到该锦标赛，可能已被删除或者您没有权限访问。'
+          // 错误3秒后自动返回列表页
+          setTimeout(() => {
+            this.$router.push('/tournaments')
+          }, 3000)
+        }
       } finally {
         this.loading = false
       }

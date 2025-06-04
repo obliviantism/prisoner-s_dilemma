@@ -38,6 +38,50 @@ class GameService:
                 if not opponent_history:
                     return 'C'  # 第一轮合作
                 return opponent_history[-1]  # 之后模仿对手上一轮的选择
+            elif strategy.name == 'Pavlov' or strategy.name.lower() == 'pavlov':
+                # Pavlov策略 (Win-Stay, Lose-Shift)：
+                # 第一轮合作，然后：
+                # - 如果上一轮我赢了(DC)或双方合作(CC)，保持上一轮的选择
+                # - 如果上一轮我输了(CD)或双方背叛(DD)，改变上一轮的选择
+                if not opponent_history:
+                    return 'C'  # 第一轮合作
+                
+                # 简化的Pavlov策略实现
+                # 使用游戏历史跟踪我们的动作
+                my_history = []
+                
+                # 模拟我们到目前为止的历史选择
+                for i in range(len(opponent_history)):
+                    if i == 0:
+                        # 第一轮始终合作
+                        my_history.append('C')
+                    else:
+                        prev_opponent_move = opponent_history[i-1]
+                        prev_my_move = my_history[i-1]
+                        
+                        # Pavlov逻辑：Win-Stay, Lose-Shift
+                        # Win: DC (我背叛,对手合作) 或 CC (双方合作)
+                        # Lose: CD (我合作,对手背叛) 或 DD (双方背叛)
+                        if (prev_my_move == 'D' and prev_opponent_move == 'C') or \
+                           (prev_my_move == 'C' and prev_opponent_move == 'C'):
+                            # 我赢了或双方合作，保持选择
+                            my_history.append(prev_my_move)
+                        else:
+                            # 我输了或双方背叛，改变选择
+                            my_history.append('D' if prev_my_move == 'C' else 'C')
+                
+                # 获取当前轮次应该做的选择
+                last_opponent_move = opponent_history[-1]
+                last_my_move = my_history[-1]
+                
+                # 应用相同的Pavlov规则决定下一步
+                if (last_my_move == 'D' and last_opponent_move == 'C') or \
+                   (last_my_move == 'C' and last_opponent_move == 'C'):
+                    # 我赢了或双方合作，保持选择
+                    return last_my_move
+                else:
+                    # 我输了或双方背叛，改变选择
+                    return 'D' if last_my_move == 'C' else 'C'
             
             # 执行自定义策略代码
             # 注意：这是一个安全风险，生产环境中应该使用沙箱执行
@@ -161,7 +205,8 @@ class GameService:
 class TournamentService:
     @staticmethod
     def create_tournament(name: str, description: str, user, rounds_per_match: int = 200, 
-                          repetitions: int = 5, payoff_matrix: Dict = None) -> Tournament:
+                          repetitions: int = 5, payoff_matrix: Dict = None,
+                          use_random_rounds: bool = False, min_rounds: int = 100, max_rounds: int = 300) -> Tournament:
         """
         创建一个新的锦标赛
         
@@ -169,9 +214,12 @@ class TournamentService:
             name: 锦标赛名称
             description: 锦标赛描述
             user: 创建锦标赛的用户
-            rounds_per_match: 每场比赛的回合数
+            rounds_per_match: 每场比赛的回合数 (当use_random_rounds为False时使用)
             repetitions: 重复次数
             payoff_matrix: 自定义收益矩阵
+            use_random_rounds: 是否使用随机回合数
+            min_rounds: 最小回合数 (当use_random_rounds为True时使用)
+            max_rounds: 最大回合数 (当use_random_rounds为True时使用)
             
         返回:
             创建的锦标赛对象
@@ -181,7 +229,10 @@ class TournamentService:
             description=description,
             created_by=user,
             rounds_per_match=rounds_per_match,
-            repetitions=repetitions
+            repetitions=repetitions,
+            use_random_rounds=use_random_rounds,
+            min_rounds=min_rounds,
+            max_rounds=max_rounds
         )
         
         # 如果提供了自定义收益矩阵，则更新
@@ -303,8 +354,12 @@ class TournamentService:
         # 存储每轮的选择和分数
         rounds_data = []
         
+        # 如果使用随机回合数，则在指定范围内随机生成回合数
+        import random
+        rounds_to_play = random.randint(tournament.min_rounds, tournament.max_rounds) if tournament.use_random_rounds else tournament.rounds_per_match
+        
         # 进行指定回合数的对局
-        for round_num in range(1, tournament.rounds_per_match + 1):
+        for round_num in range(1, rounds_to_play + 1):
             # 执行策略获取选择
             p1_choice = GameService.execute_strategy(strategy1, p2_history)
             p2_choice = GameService.execute_strategy(strategy2, p1_history)

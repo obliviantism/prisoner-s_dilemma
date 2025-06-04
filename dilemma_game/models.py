@@ -65,6 +65,10 @@ class Tournament(models.Model):
     description = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     rounds_per_match = models.IntegerField(default=200)
+    # 新增字段，用于控制是否使用随机回合数
+    use_random_rounds = models.BooleanField(default=False)
+    min_rounds = models.IntegerField(default=100)  # 最小回合数
+    max_rounds = models.IntegerField(default=300)  # 最大回合数
     repetitions = models.IntegerField(default=5)  # 每场锦标赛重复次数
     status = models.CharField(max_length=20, choices=TOURNAMENT_STATUS, default='CREATED')
     created_at = models.DateTimeField(auto_now_add=True)

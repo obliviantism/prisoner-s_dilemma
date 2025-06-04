@@ -6,7 +6,8 @@ from .views import (
     StrategyListView, StrategyCreateView, StrategyUpdateView,
     GameDetailView, GameListView, register_user, api_leaderboard, game_create, play_round, leaderboard,
     current_user, delete_game, TournamentViewSet, tournament_list, tournament_create, tournament_detail,
-    tournament_add_participant, tournament_start, tournament_run, tournament_results
+    tournament_add_participant, tournament_start, tournament_run, tournament_results, api_preset_strategies,
+    tournament_detail_api
 )
 
 # Register API URLs
@@ -22,6 +23,8 @@ urlpatterns = [
     path('api/auth/register/', register_user, name='api-register'),
     path('api/auth/user/', current_user, name='api-current-user'),
     path('api/leaderboard/', api_leaderboard, name='api-leaderboard'),
+    path('api/preset-strategies/', api_preset_strategies, name='api-preset-strategies'),
+    path('api/tournaments/<int:pk>/details/', tournament_detail_api, name='api-tournament-detail'),
     
     # Template URLs
     path('', home, name='home'),

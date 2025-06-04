@@ -36,17 +36,62 @@
           <!-- 每场比赛回合数和重复次数 -->
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label for="rounds_per_match" class="form-label">每场比赛回合数</label>
-              <input 
-                type="number" 
-                class="form-control" 
-                id="rounds_per_match" 
-                v-model.number="formData.rounds_per_match" 
-                min="1"
-                :class="{ 'is-invalid': errors.rounds_per_match }"
-              >
-              <small class="text-muted">每场对局的回合数</small>
-              <div class="invalid-feedback" v-if="errors.rounds_per_match">{{ errors.rounds_per_match }}</div>
+              <label for="rounds_type" class="form-label">回合数设置</label>
+              <div class="form-check form-switch mb-2">
+                <input 
+                  class="form-check-input" 
+                  type="checkbox" 
+                  id="use_random_rounds" 
+                  v-model="formData.use_random_rounds"
+                >
+                <label class="form-check-label" for="use_random_rounds">
+                  {{ formData.use_random_rounds ? '使用随机回合数' : '使用固定回合数' }}
+                </label>
+              </div>
+              
+              <div v-if="!formData.use_random_rounds">
+                <label for="rounds_per_match" class="form-label">每场比赛回合数</label>
+                <input 
+                  type="number" 
+                  class="form-control" 
+                  id="rounds_per_match" 
+                  v-model.number="formData.rounds_per_match" 
+                  min="1"
+                  :class="{ 'is-invalid': errors.rounds_per_match }"
+                >
+                <small class="text-muted">每场对局的回合数</small>
+                <div class="invalid-feedback" v-if="errors.rounds_per_match">{{ errors.rounds_per_match }}</div>
+              </div>
+              
+              <div v-else class="mt-2">
+                <div class="row">
+                  <div class="col-md-6">
+                    <label for="min_rounds" class="form-label">最小回合数</label>
+                    <input 
+                      type="number" 
+                      class="form-control" 
+                      id="min_rounds" 
+                      v-model.number="formData.min_rounds" 
+                      min="1"
+                      :class="{ 'is-invalid': errors.min_rounds }"
+                    >
+                    <div class="invalid-feedback" v-if="errors.min_rounds">{{ errors.min_rounds }}</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="max_rounds" class="form-label">最大回合数</label>
+                    <input 
+                      type="number" 
+                      class="form-control" 
+                      id="max_rounds" 
+                      v-model.number="formData.max_rounds" 
+                      :min="formData.min_rounds + 1"
+                      :class="{ 'is-invalid': errors.max_rounds }"
+                    >
+                    <div class="invalid-feedback" v-if="errors.max_rounds">{{ errors.max_rounds }}</div>
+                  </div>
+                </div>
+                <small class="text-muted d-block mt-1">系统将在指定范围内随机选择每场比赛的回合数</small>
+              </div>
             </div>
             
             <div class="col-md-6 mb-3">
@@ -171,6 +216,9 @@ export default {
         name: '',
         description: '',
         rounds_per_match: 200,
+        use_random_rounds: false,
+        min_rounds: 100,
+        max_rounds: 300,
         repetitions: 5,
       },
       payoffMatrix: {
@@ -191,8 +239,20 @@ export default {
         this.errors.name = '请输入锦标赛名称'
       }
       
-      if (this.formData.rounds_per_match < 1) {
-        this.errors.rounds_per_match = '每场比赛回合数必须大于0'
+      if (!this.formData.use_random_rounds) {
+        // 验证固定回合数
+        if (this.formData.rounds_per_match < 1) {
+          this.errors.rounds_per_match = '每场比赛回合数必须大于0'
+        }
+      } else {
+        // 验证随机回合数范围
+        if (this.formData.min_rounds < 1) {
+          this.errors.min_rounds = '最小回合数必须大于0'
+        }
+        
+        if (this.formData.max_rounds <= this.formData.min_rounds) {
+          this.errors.max_rounds = '最大回合数必须大于最小回合数'
+        }
       }
       
       if (this.formData.repetitions < 1) {

@@ -32,7 +32,7 @@
                 <th>描述</th>
                 <th>状态</th>
                 <th>参与者数</th>
-                <th>回合数/比赛</th>
+                <th>回合数</th>
                 <th>重复次数</th>
                 <th>创建时间</th>
                 <th>操作</th>
@@ -52,7 +52,12 @@
                   </span>
                 </td>
                 <td>{{ tournament.participants ? tournament.participants.length : 0 }}</td>
-                <td>{{ tournament.rounds_per_match }}</td>
+                <td>
+                  <span v-if="tournament.use_random_rounds" title="随机回合数">
+                    {{ tournament.min_rounds }}-{{ tournament.max_rounds }} (随机)
+                  </span>
+                  <span v-else>{{ tournament.rounds_per_match }}</span>
+                </td>
                 <td>{{ tournament.repetitions }}</td>
                 <td>{{ formatDate(tournament.created_at) }}</td>
                 <td>
@@ -66,11 +71,39 @@
                                 title="查看结果">
                       <i class="bi bi-trophy"></i>
                     </router-link>
+                    <button class="btn btn-sm btn-danger" 
+                            @click="confirmDelete(tournament)"
+                            title="删除锦标赛">
+                      <i class="bi bi-trash"></i>
+                    </button>
                   </div>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 确认删除对话框 -->
+  <div v-if="showDeleteConfirm" class="modal fade show" tabindex="-1" 
+       style="display: block; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">确认删除</h5>
+          <button type="button" class="btn-close" @click="cancelDelete"></button>
+        </div>
+        <div class="modal-body">
+          <p>您确定要删除锦标赛 "{{ tournamentToDelete ? tournamentToDelete.name : '' }}" 吗？</p>
+          <p class="text-danger">此操作不可逆，所有关联的比赛记录将被删除。</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" @click="cancelDelete">取消</button>
+          <button type="button" class="btn btn-danger" @click="deleteTournament" :disabled="deleting">
+            {{ deleting ? '删除中...' : '确认删除' }}
+          </button>
         </div>
       </div>
     </div>
@@ -89,7 +122,10 @@ export default {
   data() {
     return {
       loading: true,
-      error: null
+      error: null,
+      showDeleteConfirm: false,
+      tournamentToDelete: null,
+      deleting: false
     }
   },
   computed: {
@@ -138,6 +174,29 @@ export default {
         case 'IN_PROGRESS': return '进行中'
         case 'COMPLETED': return '已完成'
         default: return '未知'
+      }
+    },
+    confirmDelete(tournament) {
+      this.tournamentToDelete = tournament
+      this.showDeleteConfirm = true
+    },
+    cancelDelete() {
+      this.tournamentToDelete = null
+      this.showDeleteConfirm = false
+    },
+    async deleteTournament() {
+      this.deleting = true
+      try {
+        await this.$store.dispatch('deleteTournament', this.tournamentToDelete.id)
+        this.$emit('alert', `锦标赛 "${this.tournamentToDelete.name}" 已成功删除`, 'success')
+        this.tournamentToDelete = null
+        this.showDeleteConfirm = false
+      } catch (error) {
+        console.error('删除锦标赛失败:', error)
+        this.$emit('alert', `删除锦标赛失败: ${error.response?.data?.error || '请稍后重试'}`, 'danger')
+        this.showDeleteConfirm = false
+      } finally {
+        this.deleting = false
       }
     }
   },

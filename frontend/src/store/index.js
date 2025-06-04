@@ -219,6 +219,12 @@ export default createStore({
             return response.data
         },
 
+        // 获取预设策略
+        async fetchPresetStrategies() {
+            const response = await axios.get('preset-strategies/')
+            return response.data
+        },
+
         // 添加锦标赛相关的actions
         async fetchTournaments({ commit }) {
             const response = await axios.get('tournaments/')
@@ -227,9 +233,58 @@ export default createStore({
         },
 
         async fetchTournament({ commit }, id) {
-            const response = await axios.get(`tournaments/${id}/`)
-            commit('setCurrentTournament', response.data)
-            return response.data
+            try {
+                // 创建一个可以被取消的请求
+                const controller = new AbortController();
+                const signal = controller.signal;
+                
+                // 设置超时，避免请求挂起
+                const timeout = setTimeout(() => {
+                    controller.abort();
+                }, 10000); // 10秒超时
+                
+                try {
+                    // 使用新的更可靠的API端点
+                    const response = await axios.get(`tournaments/${id}/details/`, { signal });
+                    clearTimeout(timeout);
+                    commit('setCurrentTournament', response.data);
+                    return response.data;
+                } catch (innerError) {
+                    clearTimeout(timeout);
+                    
+                    // 检查是否是超时错误
+                    if (innerError.name === 'AbortError') {
+                        throw new Error('获取锦标赛详情超时，请检查网络连接并重试');
+                    }
+                    
+                    // 如果新API失败，尝试使用旧API作为备选
+                    try {
+                        console.log('尝试使用备选API获取锦标赛详情...');
+                        const backupResponse = await axios.get(`tournaments/${id}/`);
+                        commit('setCurrentTournament', backupResponse.data);
+                        return backupResponse.data;
+                    } catch (backupError) {
+                        console.error('备选API也失败:', backupError);
+                        
+                        // 处理错误
+                        if (innerError.response && innerError.response.data && innerError.response.data.error) {
+                            throw new Error(innerError.response.data.error);
+                        } else if (innerError.response && innerError.response.status === 404) {
+                            throw new Error('找不到指定的锦标赛');
+                        } else {
+                            throw innerError;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('获取锦标赛详情失败:', error);
+                // 如果服务器返回了错误信息，使用服务器提供的错误信息
+                if (error.response && error.response.data && error.response.data.error) {
+                    throw new Error(error.response.data.error);
+                } else {
+                    throw new Error(error.message || '获取锦标赛详情失败，请重试');
+                }
+            }
         },
 
         async createTournament({ dispatch }, tournamentData) {
@@ -268,6 +323,20 @@ export default createStore({
             const response = await axios.get(`tournaments/${tournamentId}/results/`)
             commit('updateCurrentTournament', { results: response.data })
             return response.data
+        },
+
+        // 删除锦标赛
+        async deleteTournament({ dispatch }, tournamentId) {
+            try {
+                await axios.delete(`tournaments/${tournamentId}/delete_tournament/`)
+                // 删除锦标赛后刷新列表
+                await dispatch('fetchTournaments')
+                return true
+            } catch (error) {
+                console.error('删除锦标赛失败:', error)
+                // 将错误向上传播，以便组件可以处理
+                throw error
+            }
         }
     }
 }) 
