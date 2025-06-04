@@ -1,0 +1,81 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}添加参赛者{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">添加参赛者到 {{ tournament.name }}</h2>
+        </div>
+        <div class="card-body">
+            {% if available_strategies %}
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-4">
+                    <label class="form-label">选择要添加的策略</label>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="selectAll">
+                                            <label class="form-check-label" for="selectAll"></label>
+                                        </div>
+                                    </th>
+                                    <th>策略名称</th>
+                                    <th>描述</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for strategy in available_strategies %}
+                                <tr>
+                                    <td>
+                                        <div class="form-check">
+                                            <input class="form-check-input strategy-checkbox" type="checkbox"
+                                                name="strategy_ids" value="{{ strategy.id }}"
+                                                id="strategy-{{ strategy.id }}">
+                                            <label class="form-check-label" for="strategy-{{ strategy.id }}"></label>
+                                        </div>
+                                    </td>
+                                    <td>{{ strategy.name }}</td>
+                                    <td>{{ strategy.description|truncatechars:100 }}</td>
+                                    <td>{{ strategy.created_at|date:"Y-m-d" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary me-md-2">返回</a>
+                    <button type="submit" class="btn btn-primary">添加选中的策略</button>
+                </div>
+            </form>
+
+            <script>
+                // 全选/取消全选
+                document.getElementById('selectAll').addEventListener('change', function () {
+                    const checkboxes = document.querySelectorAll('.strategy-checkbox');
+                    for (let checkbox of checkboxes) {
+                        checkbox.checked = this.checked;
+                    }
+                });
+            </script>
+            {% else %}
+            <div class="alert alert-info">
+                <p>没有可添加的策略。请先创建一些策略。</p>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary me-md-2">返回</a>
+                <a href="{% url 'strategy_create' %}" class="btn btn-primary">创建策略</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

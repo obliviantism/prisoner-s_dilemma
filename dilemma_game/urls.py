@@ -5,13 +5,15 @@ from .views import (
     StrategyViewSet, GameViewSet, home, 
     StrategyListView, StrategyCreateView, StrategyUpdateView,
     GameDetailView, GameListView, register_user, api_leaderboard, game_create, play_round, leaderboard,
-    current_user, delete_game
+    current_user, delete_game, TournamentViewSet, tournament_list, tournament_create, tournament_detail,
+    tournament_add_participant, tournament_start, tournament_run, tournament_results
 )
 
 # Register API URLs
 router = DefaultRouter()
 router.register(r'strategies', StrategyViewSet, basename='api-strategy')
 router.register(r'games', GameViewSet, basename='api-game')
+router.register(r'tournaments', TournamentViewSet, basename='api-tournament')
 
 urlpatterns = [
     # API URLs
@@ -32,4 +34,13 @@ urlpatterns = [
     path('games/<int:pk>/play-round/', play_round, name='play_round'),
     path('games/<int:pk>/delete/', delete_game, name='delete_game'),
     path('leaderboard/', leaderboard, name='leaderboard'),
+    
+    # 锦标赛相关URLs
+    path('tournaments/', tournament_list, name='tournament_list'),
+    path('tournaments/create/', tournament_create, name='tournament_create'),
+    path('tournaments/<int:pk>/', tournament_detail, name='tournament_detail'),
+    path('tournaments/<int:pk>/add-participant/', tournament_add_participant, name='tournament_add_participant'),
+    path('tournaments/<int:pk>/start/', tournament_start, name='tournament_start'),
+    path('tournaments/<int:pk>/run/', tournament_run, name='tournament_run'),
+    path('tournaments/<int:pk>/results/', tournament_results, name='tournament_results'),
 ]

@@ -1,0 +1,137 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}锦标赛详情{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if messages %}
+    <div class="messages mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">{{ tournament.name }}</h2>
+            <div>
+                {% if tournament.status == 'CREATED' %}
+                <a href="{% url 'tournament_add_participant' tournament.id %}" class="btn btn-light me-2">
+                    <i class="bi bi-person-plus"></i> 添加参赛者
+                </a>
+                <a href="{% url 'tournament_start' tournament.id %}" class="btn btn-warning">
+                    <i class="bi bi-play-fill"></i> 开始锦标赛
+                </a>
+                {% elif tournament.status == 'IN_PROGRESS' %}
+                <a href="{% url 'tournament_run' tournament.id %}" class="btn btn-warning">
+                    <i class="bi bi-lightning"></i> 运行锦标赛
+                </a>
+                {% elif tournament.status == 'COMPLETED' %}
+                <a href="{% url 'tournament_results' tournament.id %}" class="btn btn-success">
+                    <i class="bi bi-trophy"></i> 查看结果
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5>锦标赛信息</h5>
+                    <p>{{ tournament.description }}</p>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>状态：</strong>
+                                {% if tournament.status == 'CREATED' %}
+                                <span class="badge bg-info">已创建</span>
+                                {% elif tournament.status == 'IN_PROGRESS' %}
+                                <span class="badge bg-warning">进行中</span>
+                                {% elif tournament.status == 'COMPLETED' %}
+                                <span class="badge bg-success">已完成</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>每场比赛回合数：</strong> {{ tournament.rounds_per_match }}</p>
+                            <p><strong>重复次数：</strong> {{ tournament.repetitions }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>创建者：</strong> {{ tournament.created_by.username }}</p>
+                            <p><strong>创建时间：</strong> {{ tournament.created_at|date:"Y-m-d H:i" }}</p>
+                            {% if tournament.completed_at %}
+                            <p><strong>完成时间：</strong> {{ tournament.completed_at|date:"Y-m-d H:i" }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <h5>收益矩阵</h5>
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th></th>
+                                <th>玩家2合作(C)</th>
+                                <th>玩家2背叛(D)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th class="table-light">玩家1合作(C)</th>
+                                <td>{{ tournament.payoff_matrix.CC.0 }}, {{ tournament.payoff_matrix.CC.1 }}</td>
+                                <td>{{ tournament.payoff_matrix.CD.0 }}, {{ tournament.payoff_matrix.CD.1 }}</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">玩家1背叛(D)</th>
+                                <td>{{ tournament.payoff_matrix.DC.0 }}, {{ tournament.payoff_matrix.DC.1 }}</td>
+                                <td>{{ tournament.payoff_matrix.DD.0 }}, {{ tournament.payoff_matrix.DD.1 }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">参赛者 ({{ participants|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if participants %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>策略名称</th>
+                            <th>总分</th>
+                            <th>平均分</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for participant in participants %}
+                        <tr>
+                            <td>{% if participant.rank %}{{ participant.rank }}{% else %}-{% endif %}</td>
+                            <td>{{ participant.strategy.name }}</td>
+                            <td>{{ participant.total_score|floatformat:1 }}</td>
+                            <td>{{ participant.average_score|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <p>还没有添加参赛者到此锦标赛。</p>
+                {% if tournament.status == 'CREATED' %}
+                <a href="{% url 'tournament_add_participant' tournament.id %}" class="btn btn-primary mt-2">
+                    <i class="bi bi-person-plus"></i> 添加参赛者
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

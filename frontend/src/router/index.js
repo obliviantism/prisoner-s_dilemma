@@ -9,6 +9,10 @@ import GameForm from '../views/GameForm.vue'
 import GameDetail from '../views/GameDetail.vue'
 import Leaderboard from '../views/Leaderboard.vue'
 import History from '../views/History.vue'
+import TournamentList from '../views/TournamentList.vue'
+import TournamentForm from '../views/TournamentForm.vue'
+import TournamentDetail from '../views/TournamentDetail.vue'
+import TournamentResults from '../views/TournamentResults.vue'
 
 const routes = [
     {
@@ -72,6 +76,30 @@ const routes = [
         path: '/history',
         name: 'History',
         component: History,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/tournaments',
+        name: 'TournamentList',
+        component: TournamentList,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/tournaments/create',
+        name: 'TournamentCreate',
+        component: TournamentForm,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/tournaments/:id',
+        name: 'TournamentDetail',
+        component: TournamentDetail,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/tournaments/:id/results',
+        name: 'TournamentResults',
+        component: TournamentResults,
         meta: { requiresAuth: true }
     }
 ]

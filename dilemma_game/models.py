@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+import json
 
 class Strategy(models.Model):
     name = models.CharField(max_length=100)
@@ -34,7 +35,7 @@ class Game(models.Model):
 class Round(models.Model):
     CHOICES = (
         ('C', 'Cooperate'),
-        ('D', 'Defect'),
+        ('D', 'Deceive'),
     )
     
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='rounds')
@@ -51,3 +52,71 @@ class Round(models.Model):
 
     def __str__(self):
         return f"Game {self.game.id} - Round {self.round_number}"
+
+# 锦标赛模式的新模型
+class Tournament(models.Model):
+    TOURNAMENT_STATUS = (
+        ('CREATED', 'Created'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('COMPLETED', 'Completed'),
+    )
+    
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    rounds_per_match = models.IntegerField(default=200)
+    repetitions = models.IntegerField(default=5)  # 每场锦标赛重复次数
+    status = models.CharField(max_length=20, choices=TOURNAMENT_STATUS, default='CREATED')
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # 存储自定义的收益矩阵
+    payoff_matrix_json = models.TextField(default='{"CC":[3,3],"CD":[0,5],"DC":[5,0],"DD":[0,0]}')
+    
+    @property
+    def payoff_matrix(self):
+        """返回收益矩阵字典"""
+        return json.loads(self.payoff_matrix_json)
+    
+    @payoff_matrix.setter
+    def payoff_matrix(self, matrix_dict):
+        """设置收益矩阵"""
+        self.payoff_matrix_json = json.dumps(matrix_dict)
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_status_display()})"
+
+class TournamentParticipant(models.Model):
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='participants')
+    strategy = models.ForeignKey(Strategy, on_delete=models.CASCADE)
+    total_score = models.FloatField(default=0)  # 锦标赛中的总分
+    average_score = models.FloatField(default=0)  # 平均每场得分
+    rank = models.IntegerField(null=True, blank=True)  # 排名
+    
+    class Meta:
+        unique_together = ['tournament', 'strategy']
+    
+    def __str__(self):
+        return f"{self.strategy.name} in {self.tournament.name}"
+
+class TournamentMatch(models.Model):
+    MATCH_STATUS = (
+        ('PENDING', 'Pending'),
+        ('COMPLETED', 'Completed'),
+    )
+    
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='matches')
+    participant1 = models.ForeignKey(TournamentParticipant, on_delete=models.CASCADE, related_name='matches_as_player1')
+    participant2 = models.ForeignKey(TournamentParticipant, on_delete=models.CASCADE, related_name='matches_as_player2')
+    repetition = models.IntegerField()  # 第几次重复
+    player1_score = models.FloatField(default=0)
+    player2_score = models.FloatField(default=0)
+    status = models.CharField(max_length=20, choices=MATCH_STATUS, default='PENDING')
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        unique_together = ['tournament', 'participant1', 'participant2', 'repetition']
+    
+    def __str__(self):
+        return f"{self.participant1.strategy.name} vs {self.participant2.strategy.name} (Rep {self.repetition})"

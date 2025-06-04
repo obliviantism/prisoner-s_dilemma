@@ -1,0 +1,146 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}锦标赛结果{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">{{ tournament.name }} - 锦标赛结果</h2>
+            <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-light">
+                <i class="bi bi-arrow-left"></i> 返回详情
+            </a>
+        </div>
+        <div class="card-body">
+            {% if participants %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h4>排行榜</h4>
+                    <div style="height: 400px;">
+                        <canvas id="rankingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <h4>详细排名</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>策略名称</th>
+                                    <th>总分</th>
+                                    <th>平均分</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for participant in participants %}
+                                <tr>
+                                    <td>
+                                        {% if participant.rank == 1 %}
+                                        <i class="bi bi-trophy-fill text-warning"></i> {{ participant.rank }}
+                                        {% elif participant.rank == 2 %}
+                                        <i class="bi bi-trophy-fill text-secondary"></i> {{ participant.rank }}
+                                        {% elif participant.rank == 3 %}
+                                        <i class="bi bi-trophy-fill text-danger"></i> {{ participant.rank }}
+                                        {% else %}
+                                        {{ participant.rank }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ participant.strategy.name }}</td>
+                                    <td>{{ participant.total_score|floatformat:1 }}</td>
+                                    <td>{{ participant.average_score|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    // 准备数据
+                    const participants = [
+                        {% for participant in participants %}
+                                {
+                        name: "{{ participant.strategy.name }}",
+                        rank: {{ participant.rank }},
+                    totalScore: {{ participant.total_score | floatformat: 1 }},
+                    avgScore: {{ participant.average_score | floatformat: 2 }}
+                                }{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+                        ];
+
+                // 排序并取前10名
+                participants.sort((a, b) => a.rank - b.rank);
+                const topParticipants = participants.slice(0, 10);
+
+                // 绘制排行榜图表
+                const ctx = document.getElementById('rankingChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: topParticipants.map(p => p.name),
+                        datasets: [{
+                            label: '平均得分',
+                            data: topParticipants.map(p => p.avgScore),
+                            backgroundColor: [
+                                'rgba(255, 206, 86, 0.8)',  // 金色 (第1名)
+                                'rgba(180, 180, 180, 0.8)', // 银色 (第2名)
+                                'rgba(205, 127, 50, 0.8)',  // 铜色 (第3名)
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(153, 102, 255, 0.8)',
+                                'rgba(75, 192, 192, 0.8)',
+                                'rgba(255, 159, 64, 0.8)',
+                                'rgba(255, 99, 132, 0.8)',
+                                'rgba(201, 203, 207, 0.8)',
+                                'rgba(255, 205, 86, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(255, 206, 86)',
+                                'rgb(180, 180, 180)',
+                                'rgb(205, 127, 50)',
+                                'rgb(54, 162, 235)',
+                                'rgb(153, 102, 255)',
+                                'rgb(75, 192, 192)',
+                                'rgb(255, 159, 64)',
+                                'rgb(255, 99, 132)',
+                                'rgb(201, 203, 207)',
+                                'rgb(255, 205, 86)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: '锦标赛排行榜 (平均得分)'
+                            }
+                        }
+                    }
+                });
+                    });
+            </script>
+            {% else %}
+            <div class="alert alert-warning">
+                <p>无可用结果数据。</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

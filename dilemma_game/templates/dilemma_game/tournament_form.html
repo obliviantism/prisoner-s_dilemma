@@ -1,0 +1,91 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}创建锦标赛{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">创建新锦标赛</h2>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="name" class="form-label">锦标赛名称</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">描述</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="rounds_per_match" class="form-label">每场比赛回合数</label>
+                        <input type="number" class="form-control" id="rounds_per_match" name="rounds_per_match"
+                            value="200" min="1">
+                        <small class="text-muted">每场对局的回合数</small>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="repetitions" class="form-label">重复次数</label>
+                        <input type="number" class="form-control" id="repetitions" name="repetitions" value="5" min="1">
+                        <small class="text-muted">每种对阵组合重复的次数</small>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>自定义收益矩阵 <span class="text-muted">(可选)</span></h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">设置不同选择组合下的收益值。格式为 [玩家1得分, 玩家2得分]</p>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">双方合作 (C,C)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="cc_reward" value="3" step="0.1">
+                                    <input type="number" class="form-control" name="cc_reward" value="3" step="0.1">
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">玩家1合作，玩家2背叛 (C,D)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="cd_reward" value="0" step="0.1">
+                                    <input type="number" class="form-control" name="cd_reward" value="5" step="0.1">
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">玩家1背叛，玩家2合作 (D,C)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="dc_reward" value="5" step="0.1">
+                                    <input type="number" class="form-control" name="dc_reward" value="0" step="0.1">
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">双方背叛 (D,D)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="dd_reward" value="0" step="0.1">
+                                    <input type="number" class="form-control" name="dd_reward" value="0" step="0.1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'tournament_list' %}" class="btn btn-secondary me-md-2">取消</a>
+                    <button type="submit" class="btn btn-primary">创建锦标赛</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

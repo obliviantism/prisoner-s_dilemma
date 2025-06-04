@@ -26,7 +26,10 @@ export default createStore({
         strategies: [],
         games: [],
         currentGame: null,
-        leaderboard: []
+        leaderboard: [],
+        tournaments: [],
+        currentTournament: null,
+        tournamentParticipants: []
     },
     getters: {
         isAuthenticated: state => !!state.user,
@@ -34,7 +37,10 @@ export default createStore({
         strategies: state => state.strategies,
         games: state => state.games,
         currentGame: state => state.currentGame,
-        leaderboard: state => state.leaderboard
+        leaderboard: state => state.leaderboard,
+        tournaments: state => state.tournaments,
+        currentTournament: state => state.currentTournament,
+        tournamentParticipants: state => state.tournamentParticipants
     },
     mutations: {
         setUser(state, user) {
@@ -66,6 +72,18 @@ export default createStore({
         },
         setLeaderboard(state, leaderboard) {
             state.leaderboard = leaderboard
+        },
+        setTournaments(state, tournaments) {
+            state.tournaments = tournaments
+        },
+        setCurrentTournament(state, tournament) {
+            state.currentTournament = tournament
+        },
+        updateCurrentTournament(state, tournamentData) {
+            state.currentTournament = { ...state.currentTournament, ...tournamentData }
+        },
+        setTournamentParticipants(state, participants) {
+            state.tournamentParticipants = participants
         },
         setError(state, errorMessage) {
             // 实际项目中应该添加错误状态管理
@@ -198,6 +216,57 @@ export default createStore({
         async fetchLeaderboard({ commit }) {
             const response = await axios.get('leaderboard/')
             commit('setLeaderboard', response.data)
+            return response.data
+        },
+
+        // 添加锦标赛相关的actions
+        async fetchTournaments({ commit }) {
+            const response = await axios.get('tournaments/')
+            commit('setTournaments', response.data)
+            return response.data
+        },
+
+        async fetchTournament({ commit }, id) {
+            const response = await axios.get(`tournaments/${id}/`)
+            commit('setCurrentTournament', response.data)
+            return response.data
+        },
+
+        async createTournament({ dispatch }, tournamentData) {
+            const response = await axios.post('tournaments/create_tournament/', tournamentData)
+            await dispatch('fetchTournaments')
+            return response.data
+        },
+
+        async addParticipant({ dispatch }, { tournamentId, strategyId }) {
+            const response = await axios.post(`tournaments/${tournamentId}/add_participant/`, {
+                strategy_id: strategyId
+            })
+            await dispatch('fetchTournament', tournamentId)
+            return response.data
+        },
+
+        async getTournamentParticipants({ commit }, tournamentId) {
+            const response = await axios.get(`tournaments/${tournamentId}/get_participants/`)
+            commit('setTournamentParticipants', response.data)
+            return response.data
+        },
+
+        async startTournament({ commit }, tournamentId) {
+            const response = await axios.post(`tournaments/${tournamentId}/start_tournament/`)
+            commit('updateCurrentTournament', { status: 'IN_PROGRESS' })
+            return response.data
+        },
+
+        async runTournament({ commit }, tournamentId) {
+            const response = await axios.post(`tournaments/${tournamentId}/run_tournament/`)
+            commit('updateCurrentTournament', { status: 'COMPLETED' })
+            return response.data
+        },
+
+        async getTournamentResults({ commit }, tournamentId) {
+            const response = await axios.get(`tournaments/${tournamentId}/results/`)
+            commit('updateCurrentTournament', { results: response.data })
             return response.data
         }
     }

@@ -16,6 +16,9 @@
               <router-link class="nav-link" to="/games">游戏</router-link>
             </li>
             <li class="nav-item">
+              <router-link class="nav-link" to="/tournaments">锦标赛</router-link>
+            </li>
+            <li class="nav-item">
               <router-link class="nav-link" to="/leaderboard">排行榜</router-link>
             </li>
             <li class="nav-item">

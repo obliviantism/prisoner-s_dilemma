@@ -9,9 +9,9 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from .models import Strategy, Game, Round
-from .services import GameService
-from .serializers import StrategySerializer, GameSerializer
+from .models import Strategy, Game, Round, Tournament, TournamentParticipant, TournamentMatch
+from .services import GameService, TournamentService
+from .serializers import StrategySerializer, GameSerializer, TournamentSerializer
 from django.db import connection
 
 # Create your views here.
@@ -339,3 +339,279 @@ def register_user(request):
         },
         'message': '注册成功'
     }, status=status.HTTP_201_CREATED)
+
+# 添加锦标赛相关视图
+
+class TournamentViewSet(viewsets.ModelViewSet):
+    """
+    锦标赛API视图集
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TournamentSerializer
+    
+    def get_queryset(self):
+        return Tournament.objects.all().order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def create_tournament(self, request):
+        """创建新的锦标赛"""
+        name = request.data.get('name')
+        description = request.data.get('description', '')
+        rounds_per_match = int(request.data.get('rounds_per_match', 200))
+        repetitions = int(request.data.get('repetitions', 5))
+        
+        # 检查自定义收益矩阵
+        payoff_matrix = None
+        if 'payoff_matrix' in request.data:
+            try:
+                payoff_matrix = request.data.get('payoff_matrix')
+            except Exception as e:
+                return Response({'error': f'Invalid payoff matrix format: {str(e)}'}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            tournament = TournamentService.create_tournament(
+                name=name,
+                description=description,
+                user=request.user,
+                rounds_per_match=rounds_per_match,
+                repetitions=repetitions,
+                payoff_matrix=payoff_matrix
+            )
+            
+            return Response({
+                'id': tournament.id,
+                'name': tournament.name,
+                'status': tournament.status,
+                'message': 'Tournament created successfully'
+            }, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def add_participant(self, request, pk=None):
+        """添加参赛者到锦标赛"""
+        tournament = self.get_object()
+        strategy_id = request.data.get('strategy_id')
+        
+        try:
+            strategy = Strategy.objects.get(id=strategy_id)
+            participant = TournamentService.add_participant(tournament, strategy)
+            
+            return Response({
+                'id': participant.id,
+                'strategy_name': strategy.name,
+                'message': f'Strategy {strategy.name} added to tournament'
+            }, status=status.HTTP_201_CREATED)
+        
+        except Strategy.DoesNotExist:
+            return Response({'error': 'Strategy not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def get_participants(self, request, pk=None):
+        """获取锦标赛的所有参赛者"""
+        tournament = self.get_object()
+        participants = TournamentParticipant.objects.filter(tournament=tournament)
+        
+        result = []
+        for p in participants:
+            result.append({
+                'id': p.id,
+                'strategy_id': p.strategy.id,
+                'strategy_name': p.strategy.name,
+                'rank': p.rank,
+                'total_score': p.total_score,
+                'average_score': p.average_score
+            })
+        
+        return Response(result)
+    
+    @action(detail=True, methods=['post'])
+    def start_tournament(self, request, pk=None):
+        """开始锦标赛，生成所有比赛"""
+        tournament = self.get_object()
+        
+        try:
+            matches = TournamentService.generate_matches(tournament)
+            
+            return Response({
+                'tournament_id': tournament.id,
+                'status': tournament.status,
+                'matches_count': len(matches),
+                'message': 'Tournament started successfully'
+            })
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def run_tournament(self, request, pk=None):
+        """运行整个锦标赛，执行所有比赛"""
+        tournament = self.get_object()
+        
+        try:
+            results = TournamentService.run_tournament(tournament)
+            
+            return Response({
+                'tournament_id': tournament.id,
+                'status': tournament.status,
+                'message': 'Tournament completed successfully',
+                'results': results
+            })
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def results(self, request, pk=None):
+        """获取锦标赛结果"""
+        tournament = self.get_object()
+        
+        if tournament.status != 'COMPLETED':
+            return Response({
+                'error': 'Tournament is not completed yet',
+                'status': tournament.status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            results = TournamentService.get_tournament_results(tournament)
+            return Response(results)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# 添加锦标赛的模板视图
+
+@login_required
+def tournament_list(request):
+    tournaments = Tournament.objects.all().order_by('-created_at')
+    return render(request, 'dilemma_game/tournament_list.html', {
+        'tournaments': tournaments
+    })
+
+@login_required
+def tournament_create(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        description = request.POST.get('description', '')
+        rounds_per_match = int(request.POST.get('rounds_per_match', 200))
+        repetitions = int(request.POST.get('repetitions', 5))
+        
+        # 处理收益矩阵
+        try:
+            cc_reward = request.POST.getlist('cc_reward')
+            cd_reward = request.POST.getlist('cd_reward')
+            dc_reward = request.POST.getlist('dc_reward')
+            dd_reward = request.POST.getlist('dd_reward')
+            
+            payoff_matrix = {
+                'CC': [float(cc_reward[0]), float(cc_reward[1])],
+                'CD': [float(cd_reward[0]), float(cd_reward[1])],
+                'DC': [float(dc_reward[0]), float(dc_reward[1])],
+                'DD': [float(dd_reward[0]), float(dd_reward[1])]
+            }
+        except (IndexError, ValueError):
+            # 使用默认收益矩阵
+            payoff_matrix = None
+        
+        tournament = TournamentService.create_tournament(
+            name=name,
+            description=description,
+            user=request.user,
+            rounds_per_match=rounds_per_match,
+            repetitions=repetitions,
+            payoff_matrix=payoff_matrix
+        )
+        
+        messages.success(request, 'Tournament created successfully!')
+        return redirect('tournament_detail', pk=tournament.id)
+    
+    return render(request, 'dilemma_game/tournament_form.html')
+
+@login_required
+def tournament_detail(request, pk):
+    tournament = get_object_or_404(Tournament, pk=pk)
+    participants = TournamentParticipant.objects.filter(tournament=tournament).order_by('rank')
+    
+    return render(request, 'dilemma_game/tournament_detail.html', {
+        'tournament': tournament,
+        'participants': participants
+    })
+
+@login_required
+def tournament_add_participant(request, pk):
+    tournament = get_object_or_404(Tournament, pk=pk)
+    
+    if request.method == 'POST':
+        strategy_ids = request.POST.getlist('strategy_ids')
+        added_count = 0
+        
+        for strategy_id in strategy_ids:
+            try:
+                strategy = Strategy.objects.get(id=strategy_id)
+                TournamentService.add_participant(tournament, strategy)
+                added_count += 1
+            except Exception as e:
+                messages.error(request, f"Error adding strategy {strategy_id}: {str(e)}")
+        
+        if added_count > 0:
+            messages.success(request, f'Added {added_count} strategies to the tournament.')
+        
+        return redirect('tournament_detail', pk=tournament.id)
+    
+    # 获取可用的策略
+    available_strategies = Strategy.objects.filter(created_by=request.user)
+    
+    # 排除已添加的策略
+    existing_strategies = TournamentParticipant.objects.filter(tournament=tournament).values_list('strategy_id', flat=True)
+    available_strategies = available_strategies.exclude(id__in=existing_strategies)
+    
+    return render(request, 'dilemma_game/tournament_add_participant.html', {
+        'tournament': tournament,
+        'available_strategies': available_strategies
+    })
+
+@login_required
+def tournament_start(request, pk):
+    tournament = get_object_or_404(Tournament, pk=pk)
+    
+    try:
+        TournamentService.generate_matches(tournament)
+        messages.success(request, 'Tournament started successfully!')
+    except Exception as e:
+        messages.error(request, f'Error starting tournament: {str(e)}')
+    
+    return redirect('tournament_detail', pk=tournament.id)
+
+@login_required
+def tournament_run(request, pk):
+    tournament = get_object_or_404(Tournament, pk=pk)
+    
+    try:
+        TournamentService.run_tournament(tournament)
+        messages.success(request, 'Tournament completed successfully!')
+    except Exception as e:
+        messages.error(request, f'Error running tournament: {str(e)}')
+    
+    return redirect('tournament_detail', pk=tournament.id)
+
+@login_required
+def tournament_results(request, pk):
+    tournament = get_object_or_404(Tournament, pk=pk)
+    
+    if tournament.status != 'COMPLETED':
+        messages.error(request, 'Tournament is not completed yet.')
+        return redirect('tournament_detail', pk=tournament.id)
+    
+    participants = TournamentParticipant.objects.filter(tournament=tournament).order_by('rank')
+    
+    return render(request, 'dilemma_game/tournament_results.html', {
+        'tournament': tournament,
+        'participants': participants
+    })
