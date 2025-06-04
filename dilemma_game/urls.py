@@ -5,7 +5,7 @@ from .views import (
     StrategyViewSet, GameViewSet, home, 
     StrategyListView, StrategyCreateView, StrategyUpdateView,
     GameDetailView, GameListView, register_user, api_leaderboard, game_create, play_round, leaderboard,
-    current_user
+    current_user, delete_game
 )
 
 # Register API URLs
@@ -30,5 +30,6 @@ urlpatterns = [
     path('games/create/', game_create, name='game_create'),
     path('games/<int:pk>/', GameDetailView.as_view(), name='game_detail'),
     path('games/<int:pk>/play-round/', play_round, name='play_round'),
+    path('games/<int:pk>/delete/', delete_game, name='delete_game'),
     path('leaderboard/', leaderboard, name='leaderboard'),
 ]

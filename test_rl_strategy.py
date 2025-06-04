@@ -219,7 +219,10 @@ def load_results(filename="rl_tournament_results.pkl"):
             return pickle.load(f)
     return None
 
-def tournament(strategies, rounds=200, iterations=10):
+import random
+exact_round = random.randint(500, 600)
+
+def tournament(strategies, rounds=exact_round, iterations=10):
     """
     进行多次对弈的锦标赛，评估策略性能
     
@@ -331,6 +334,10 @@ def plot_learning_curve(q_strategy, opponents, rounds_list, iterations=5):
     plt.show()
 
 def main():
+    # Configure matplotlib to support Chinese characters
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS']
+    plt.rcParams['axes.unicode_minus'] = False
+
     # 创建所有策略
     strategies = [
         QLearningStrategy(exploration_rate=0.1),  # Q-learning策略

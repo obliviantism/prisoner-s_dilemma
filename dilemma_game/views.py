@@ -64,6 +64,51 @@ class GameViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['delete'])
+    def delete_game(self, request, pk=None):
+        game = self.get_object()
+        
+        # 保存删除前的游戏信息，用于响应消息
+        game_info = {
+            'id': game.id,
+            'strategy1': game.strategy1.name,
+            'strategy2': game.strategy2.name,
+            'status': game.status,
+            'player1_score': game.player1_score,
+            'player2_score': game.player2_score
+        }
+        
+        # 执行删除操作
+        game.delete()
+        
+        # 返回删除结果
+        return Response({
+            'message': f'Game {game_info["id"]} between {game_info["strategy1"]} and {game_info["strategy2"]} was successfully deleted',
+            'deleted_game': game_info
+        }, status=status.HTTP_200_OK)
+        
+    def destroy(self, request, *args, **kwargs):
+        game = self.get_object()
+        
+        # 保存删除前的游戏信息，用于响应消息
+        game_info = {
+            'id': game.id,
+            'strategy1': game.strategy1.name,
+            'strategy2': game.strategy2.name,
+            'status': game.status,
+            'player1_score': game.player1_score,
+            'player2_score': game.player2_score
+        }
+        
+        # 执行删除操作
+        self.perform_destroy(game)
+        
+        # 返回删除结果
+        return Response({
+            'message': f'Game {game_info["id"]} between {game_info["strategy1"]} and {game_info["strategy2"]} was successfully deleted',
+            'deleted_game': game_info
+        }, status=status.HTTP_200_OK)
 
 # Template Views
 @login_required
@@ -148,6 +193,18 @@ def play_round(request, pk):
         messages.success(request, 'Round played successfully!')
     except ValueError as e:
         messages.error(request, str(e))
+    
+    return redirect('game_detail', pk=game.id)
+
+@login_required
+def delete_game(request, pk):
+    game = get_object_or_404(Game, pk=pk)
+    
+    if request.method == 'POST':
+        game_name = f"Game #{game.id}: {game.strategy1.name} vs {game.strategy2.name}"
+        game.delete()
+        messages.success(request, f'{game_name} was successfully deleted.')
+        return redirect('game_list')
     
     return redirect('game_detail', pk=game.id)
 

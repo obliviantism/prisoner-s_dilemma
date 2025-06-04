@@ -6,6 +6,8 @@ import store from './store'
 // 导入Bootstrap样式和JavaScript
 import 'bootstrap/dist/css/bootstrap.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
+// 导入Bootstrap Icons
+import 'bootstrap-icons/font/bootstrap-icons.css'
 
 const app = createApp(App)
 

@@ -73,6 +73,38 @@
         <router-link to="/games" class="btn btn-outline-secondary ml-2">
           返回游戏列表
         </router-link>
+        
+        <button 
+          class="btn btn-danger ml-2" 
+          @click="confirmDeleteGame" 
+          :disabled="processing"
+        >
+          删除游戏
+        </button>
+      </div>
+      
+      <!-- 删除确认对话框 -->
+      <div class="modal fade" id="deleteGameModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">确认删除</h5>
+              <button type="button" class="btn-close" @click="closeModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p>您确定要删除这个游戏 #{{ game.id }} 吗？</p>
+              <p>策略1: <strong>{{ game.strategy1 ? game.strategy1.name : '未知策略' }}</strong></p>
+              <p>策略2: <strong>{{ game.strategy2 ? game.strategy2.name : '未知策略' }}</strong></p>
+              <p class="text-danger"><strong>警告:</strong> 这将永久删除游戏记录并影响排行榜得分。此操作不可撤销。</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" @click="closeModal">取消</button>
+              <button type="button" class="btn btn-danger" @click="deleteGame" :disabled="deleting">
+                {{ deleting ? '删除中...' : '删除游戏' }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       
       <div class="card">
@@ -112,6 +144,8 @@
 </template>
 
 <script>
+import { Modal } from 'bootstrap'
+
 export default {
   name: 'GameDetailView',
   data() {
@@ -120,11 +154,24 @@ export default {
         rounds: []
       },
       loading: true,
-      processing: false
+      processing: false,
+      deleting: false,
+      deleteModal: null
     }
   },
   created() {
     this.fetchGame()
+  },
+  mounted() {
+    // 初始化模态框
+    this.initModal()
+  },
+  beforeUnmount() {
+    // 确保Modal在组件销毁前也被销毁
+    if (this.deleteModal) {
+      this.deleteModal.dispose()
+      this.deleteModal = null
+    }
   },
   methods: {
     async fetchGame() {
@@ -133,6 +180,9 @@ export default {
         const gameId = this.$route.params.id
         const response = await this.$store.dispatch('fetchGame', gameId)
         this.game = response
+        
+        // 数据加载完成后，初始化模态框
+        this.initModal()
       } catch (error) {
         this.$store.commit('setError', '获取游戏失败: ' + error.message)
       } finally {
@@ -180,6 +230,78 @@ export default {
       if (choice === 'C') return '合作'
       if (choice === 'D') return '背叛'
       return choice
+    },
+    initModal() {
+      this.$nextTick(() => {
+        if (!this.deleteModal) {
+          const modalElement = document.getElementById('deleteGameModal')
+          if (modalElement) {
+            try {
+              this.deleteModal = new Modal(modalElement)
+            } catch (error) {
+              console.error('初始化Modal失败:', error)
+            }
+          }
+        }
+      })
+    },
+    closeModal() {
+      if (this.deleteModal) {
+        try {
+          this.deleteModal.hide()
+        } catch (error) {
+          console.error('关闭Modal失败:', error)
+        }
+      }
+    },
+    confirmDeleteGame() {
+      this.initModal() // 确保Modal已初始化
+      
+      // 等待下一个DOM更新周期，确保Modal已就绪
+      this.$nextTick(() => {
+        if (this.deleteModal) {
+          try {
+            this.deleteModal.show()
+          } catch (error) {
+            console.error('显示Modal失败:', error)
+            alert('确认删除: 您确定要删除这个游戏吗？') // 备用确认方式
+          }
+        } else {
+          alert('确认删除: 您确定要删除这个游戏吗？') // 备用确认方式
+        }
+      })
+    },
+    async deleteGame() {
+      try {
+        this.deleting = true
+        const gameId = this.$route.params.id
+        await this.$store.dispatch('deleteGame', gameId)
+        
+        // 删除成功后返回游戏列表页面 - 跳转前不再尝试处理modal
+        // 而是直接使用强制清理的方式处理模态框痕迹
+        document.body.classList.remove('modal-open')
+        const backdrop = document.querySelector('.modal-backdrop')
+        if (backdrop) backdrop.parentNode.removeChild(backdrop)
+        
+        // 直接销毁模态框，不再调用hide方法
+        if (this.deleteModal) {
+          try {
+            this.deleteModal.dispose()
+          } catch (e) {
+            console.error('销毁模态框失败', e)
+          }
+          this.deleteModal = null
+        }
+        
+        // 延迟跳转，确保DOM操作完成
+        setTimeout(() => {
+          this.$router.push('/games')
+        }, 50)
+      } catch (error) {
+        this.$store.commit('setError', '删除游戏失败: ' + error.message)
+      } finally {
+        this.deleting = false
+      }
     }
   }
 }

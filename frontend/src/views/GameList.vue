@@ -42,25 +42,63 @@
               <router-link :to="`/games/${game.id}`" class="btn btn-sm btn-outline-primary">
                 查看详情
               </router-link>
+              <button 
+                class="btn btn-sm btn-outline-danger ms-1" 
+                @click="confirmDeleteGame(game)"
+              >
+                删除
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <!-- 删除确认对话框 -->
+    <div class="modal fade" id="deleteGameModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">确认删除</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" v-if="gameToDelete">
+            <p>您确定要删除这个游戏 #{{ gameToDelete.id }} 吗？</p>
+            <p>策略1: <strong>{{ gameToDelete.strategy1 ? gameToDelete.strategy1.name : '未知策略' }}</strong></p>
+            <p>策略2: <strong>{{ gameToDelete.strategy2 ? gameToDelete.strategy2.name : '未知策略' }}</strong></p>
+            <p class="text-danger"><strong>警告:</strong> 这将永久删除游戏记录并影响排行榜得分。此操作不可撤销。</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-danger" @click="deleteGame" :disabled="deleting">
+              {{ deleting ? '删除中...' : '删除游戏' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import * as bootstrap from 'bootstrap'
+
 export default {
   name: 'GameListView',
   data() {
     return {
       games: [],
-      loading: true
+      loading: true,
+      gameToDelete: null,
+      deleting: false
     }
   },
   created() {
     this.fetchGames()
+  },
+  mounted() {
+    // 初始化Bootstrap Modal
+    this.deleteModal = new bootstrap.Modal(document.getElementById('deleteGameModal'))
   },
   methods: {
     async fetchGames() {
@@ -86,6 +124,23 @@ export default {
       if (!dateString) return ''
       const date = new Date(dateString)
       return date.toLocaleString()
+    },
+    confirmDeleteGame(game) {
+      this.gameToDelete = game
+      this.deleteModal.show()
+    },
+    async deleteGame() {
+      try {
+        this.deleting = true
+        await this.$store.dispatch('deleteGame', this.gameToDelete.id)
+        this.games = this.games.filter(g => g.id !== this.gameToDelete.id)
+        this.deleteModal.hide()
+        this.gameToDelete = null
+      } catch (error) {
+        this.$store.commit('setError', '删除游戏失败: ' + error.message)
+      } finally {
+        this.deleting = false
+      }
     }
   }
 }

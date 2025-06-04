@@ -23,14 +23,21 @@
             </li>
           </ul>
           
-          <!-- 已登录用户菜单 -->
+          <!-- 已登录用户菜单 - 使用Vue控制下拉菜单 -->
           <ul class="navbar-nav ms-auto" v-if="isAuthenticated">
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                {{ currentUser ? currentUser.username : '用户' }}
+            <li class="nav-item dropdown" ref="userDropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" 
+                 @click.prevent="toggleDropdown"
+                 role="button">
+                <i class="bi bi-person-circle me-1"></i> {{ currentUser ? currentUser.username : '用户' }}
               </a>
-              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                <li><a class="dropdown-item" href="#" @click.prevent="handleLogout">退出登录</a></li>
+              <ul class="dropdown-menu dropdown-menu-end" :class="{ show: dropdownOpen }" 
+                  style="position: absolute;" aria-labelledby="navbarDropdown">
+                <li>
+                  <a class="dropdown-item d-flex align-items-center" href="#" @click.prevent="handleLogout">
+                    <i class="bi bi-box-arrow-right me-2"></i> 退出登录
+                  </a>
+                </li>
               </ul>
             </li>
           </ul>
@@ -72,7 +79,8 @@ export default {
       showAlert: false,
       alertMessage: '',
       alertVariant: 'info',
-      sessionChecked: false
+      sessionChecked: false,
+      dropdownOpen: false
     }
   },
   computed: {
@@ -94,19 +102,40 @@ export default {
         this.sessionChecked = true;
       }
     },
-    handleLogout() {
-      this.logout();
-      this.$router.push('/login');
-      this.showGlobalAlert('已成功退出登录', 'success');
+    async handleLogout() {
+      this.dropdownOpen = false;
+      try {
+        await this.logout();
+        this.$router.push('/login');
+        this.showGlobalAlert('已成功退出登录', 'success');
+      } catch (error) {
+        console.error('退出登录时发生错误:', error);
+        this.showGlobalAlert('退出登录时发生错误，请重试', 'danger');
+      }
     },
     showGlobalAlert(message, variant = 'info') {
       this.alertMessage = message;
       this.alertVariant = variant;
       this.showAlert = true;
+    },
+    toggleDropdown() {
+      this.dropdownOpen = !this.dropdownOpen;
+    },
+    closeDropdown(e) {
+      if (this.$refs.userDropdown && !this.$refs.userDropdown.contains(e.target)) {
+        this.dropdownOpen = false;
+      }
     }
   },
   async created() {
     await this.checkSession();
+  },
+  mounted() {
+    // 点击其他地方关闭下拉菜单
+    document.addEventListener('click', this.closeDropdown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.closeDropdown);
   }
 }
 </script>
@@ -119,4 +148,9 @@ export default {
   color: #2c3e50;
   min-height: 100vh;
 }
-</style>
+
+/* 确保下拉菜单正确显示 */
+.dropdown-menu.show {
+  display: block;
+}
+</style> 

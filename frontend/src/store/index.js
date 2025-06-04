@@ -120,9 +120,20 @@ export default createStore({
             const response = await axios.post('auth/register/', userData)
             return response.data
         },
-        logout({ commit }) {
-            localStorage.removeItem('token')
-            commit('setUser', null)
+        async logout({ commit }) {
+            try {
+                const token = localStorage.getItem('token')
+                if (token) {
+                    // 向服务器发送退出请求
+                    await axios.post('auth/logout/')
+                }
+            } catch (error) {
+                console.error('退出时发生错误:', error)
+            } finally {
+                // 即使服务器请求失败，也要清除本地状态
+                localStorage.removeItem('token')
+                commit('setUser', null)
+            }
         },
 
         // 策略
@@ -175,6 +186,12 @@ export default createStore({
             const response = await axios.post(`games/${gameId}/play_full_game/`)
             commit('updateCurrentGame', response.data)
             return response.data
+        },
+        async deleteGame({ dispatch }, gameId) {
+            await axios.delete(`games/${gameId}/delete_game/`)
+            // 删除游戏后刷新游戏列表
+            await dispatch('fetchGames')
+            return true
         },
 
         // 排行榜
