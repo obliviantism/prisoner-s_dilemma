@@ -12,6 +12,7 @@ from rest_framework.authtoken.models import Token
 from .models import Strategy, Game, Round
 from .services import GameService
 from .serializers import StrategySerializer, GameSerializer
+from django.db import connection
 
 # Create your views here.
 
@@ -40,9 +41,14 @@ class GameViewSet(viewsets.ModelViewSet):
         strategy1 = get_object_or_404(Strategy, id=strategy1_id)
         strategy2 = get_object_or_404(Strategy, id=strategy2_id)
         
-        game = GameService.create_game(strategy1, strategy2, total_rounds)
-        serializer = self.get_serializer(game)
-        return Response(serializer.data)
+        try:
+            game = GameService.create_game(strategy1, strategy2, total_rounds)
+            serializer = self.get_serializer(game)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({
+                'error': f'创建游戏失败: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
     def play_round(self, request, pk=None):
@@ -82,6 +88,11 @@ class GameViewSet(viewsets.ModelViewSet):
         # 执行删除操作
         game.delete()
         
+        # 重置ID自增计数器
+        with connection.cursor() as cursor:
+            # SQLite specific SQL to reset auto-increment
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='dilemma_game_game';")
+        
         # 返回删除结果
         return Response({
             'message': f'Game {game_info["id"]} between {game_info["strategy1"]} and {game_info["strategy2"]} was successfully deleted',
@@ -103,6 +114,11 @@ class GameViewSet(viewsets.ModelViewSet):
         
         # 执行删除操作
         self.perform_destroy(game)
+        
+        # 重置ID自增计数器
+        with connection.cursor() as cursor:
+            # SQLite specific SQL to reset auto-increment
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='dilemma_game_game';")
         
         # 返回删除结果
         return Response({
@@ -171,9 +187,16 @@ def game_create(request):
         strategy1 = get_object_or_404(Strategy, id=strategy1_id)
         strategy2 = get_object_or_404(Strategy, id=strategy2_id)
         
-        game = GameService.create_game(strategy1, strategy2, total_rounds)
-        messages.success(request, 'Game created successfully!')
-        return redirect('game_detail', pk=game.id)
+        try:
+            game = GameService.create_game(strategy1, strategy2, total_rounds)
+            messages.success(request, '游戏创建成功！')
+            return redirect('game_detail', pk=game.id)
+        except Exception as e:
+            messages.error(request, f'创建游戏失败: {str(e)}')
+            strategies = Strategy.objects.filter(created_by=request.user)
+            return render(request, 'dilemma_game/game_form.html', {
+                'strategies': strategies
+            })
     
     strategies = Strategy.objects.filter(created_by=request.user)
     return render(request, 'dilemma_game/game_form.html', {
@@ -203,6 +226,12 @@ def delete_game(request, pk):
     if request.method == 'POST':
         game_name = f"Game #{game.id}: {game.strategy1.name} vs {game.strategy2.name}"
         game.delete()
+        
+        # 重置ID自增计数器
+        with connection.cursor() as cursor:
+            # SQLite specific SQL to reset auto-increment
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='dilemma_game_game';")
+            
         messages.success(request, f'{game_name} was successfully deleted.')
         return redirect('game_list')
     

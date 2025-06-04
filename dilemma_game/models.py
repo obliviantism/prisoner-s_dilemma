@@ -34,7 +34,7 @@ class Game(models.Model):
 class Round(models.Model):
     CHOICES = (
         ('C', 'Cooperate'),
-        ('D', 'Deceive'),
+        ('D', 'Defect'),
     )
     
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='rounds')

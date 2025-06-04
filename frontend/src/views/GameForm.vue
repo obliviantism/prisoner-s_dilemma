@@ -186,11 +186,6 @@ export default {
       return Math.floor(Math.random() * (max - min + 1)) + min;
     },
     async createGame() {
-      if (this.formData.strategy1 === this.formData.strategy2) {
-        this.$store.commit('setError', '策略1和策略2不能相同')
-        return
-      }
-      
       // 如果选择随机回合数，生成一个随机数
       const totalRounds = this.roundsOption === 'random' 
         ? this.generateRandomRounds() 
