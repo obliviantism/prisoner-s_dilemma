@@ -8,9 +8,9 @@ class GameService:
         """Calculate scores for a single round based on players' choices."""
         score_matrix = {
             ('C', 'C'): (3, 3),    # Both cooperate
-            ('C', 'D'): (0, 5),    # Player 1 cooperates, Player 2 deceives
-            ('D', 'C'): (5, 0),    # Player 1 deceives, Player 2 cooperates
-            ('D', 'D'): (0, 0),    # Both deceive
+            ('C', 'D'): (1, 5),    # Player 1 cooperates, Player 2 deceives
+            ('D', 'C'): (5, 1),    # Player 1 deceives, Player 2 cooperates
+            ('D', 'D'): (1, 1),    # Both deceive
         }
         return score_matrix[(player1_choice, player2_choice)]
 
@@ -33,7 +33,7 @@ class GameService:
                 return 'C'
             elif strategy.name == 'Always_Defect':
                 return 'D'
-            elif strategy.name == 'Tit for tat':
+            elif strategy.name == 'Tit for Tat' or strategy.name.lower() == 'tit for tat':
                 # Tit for tat策略：第一轮合作，之后模仿对手上一轮的选择
                 if not opponent_history:
                     return 'C'  # 第一轮合作
