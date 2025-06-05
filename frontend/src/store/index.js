@@ -6,6 +6,17 @@ axios.defaults.baseURL = 'http://localhost:8000/api/'
 axios.defaults.xsrfCookieName = 'csrftoken'
 axios.defaults.xsrfHeaderName = 'X-CSRFToken'
 
+// API错误处理辅助函数
+const handleApiError = (commit, error) => {
+    console.error('API 请求错误:', error)
+    if (error.response && error.response.data) {
+        const errorMessage = error.response.data.error || error.response.data.detail || '请求失败'
+        commit('setError', errorMessage)
+    } else {
+        commit('setError', error.message || '网络错误，请检查您的连接')
+    }
+}
+
 // 添加请求拦截器
 axios.interceptors.request.use(
     config => {
@@ -165,9 +176,35 @@ export default createStore({
             return response.data
         },
         async createStrategy({ commit }, strategyData) {
-            const response = await axios.post('strategies/', strategyData)
-            commit('addStrategy', response.data)
-            return response.data
+            try {
+                console.log(`正在创建策略: ${strategyData.name}`, strategyData)
+                const response = await axios.post('strategies/', strategyData)
+                console.log(`策略创建成功:`, response.data)
+                commit('addStrategy', response.data)
+                return response.data
+            } catch (error) {
+                console.error(`创建策略 "${strategyData.name}" 失败:`, error)
+
+                // 详细记录错误信息
+                if (error.response) {
+                    console.error('服务器响应:', {
+                        status: error.response.status,
+                        statusText: error.response.statusText,
+                        data: error.response.data
+                    })
+
+                    // 如果有详细错误信息，将其作为错误消息
+                    if (error.response.data && (error.response.data.error || error.response.data.detail)) {
+                        const errorMessage = error.response.data.error || error.response.data.detail
+                        handleApiError(commit, { message: errorMessage, response: error.response })
+                        throw new Error(errorMessage)
+                    }
+                }
+
+                // 处理其他类型的错误
+                handleApiError(commit, error)
+                throw error
+            }
         },
         async updateStrategy({ commit }, { id, ...strategyData }) {
             const response = await axios.put(`strategies/${id}/`, strategyData)
@@ -175,9 +212,23 @@ export default createStore({
             return response.data
         },
         async deleteStrategy({ commit }, id) {
-            await axios.delete(`strategies/${id}/`)
-            commit('removeStrategy', id)
-            return true
+            try {
+                console.log(`开始删除策略，ID: ${id}`)
+                const response = await axios.delete(`strategies/${id}/`)
+                console.log(`删除策略成功，响应:`, response.data)
+                commit('removeStrategy', id)
+                return true
+            } catch (error) {
+                console.error('删除策略失败:', error)
+                console.error('错误详情:', {
+                    message: error.message,
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    responseData: error.response?.data
+                })
+                handleApiError(commit, error)
+                throw error
+            }
         },
 
         // 游戏
@@ -220,9 +271,26 @@ export default createStore({
         },
 
         // 获取预设策略
-        async fetchPresetStrategies() {
-            const response = await axios.get('preset-strategies/')
-            return response.data
+        async fetchPresetStrategies({ commit }) {
+            try {
+                const response = await axios.get('preset-strategies/')
+                return response.data
+            } catch (error) {
+                handleApiError(commit, error)
+                return []
+            }
+        },
+
+        // 获取已删除的预设策略
+        async fetchDeletedPresetStrategies({ commit }) {
+            try {
+                // 直接从API获取已删除的预设策略
+                const response = await axios.get('deleted-preset-strategies/');
+                return response.data;
+            } catch (error) {
+                handleApiError(commit, error);
+                return [];
+            }
         },
 
         // 添加锦标赛相关的actions

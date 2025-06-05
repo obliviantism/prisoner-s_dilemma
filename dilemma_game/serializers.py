@@ -4,12 +4,70 @@ from .models import Strategy, Game, Round, Tournament, TournamentParticipant, To
 class StrategySerializer(serializers.ModelSerializer):
     class Meta:
         model = Strategy
-        fields = ['id', 'name', 'description', 'code', 'created_by', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'code', 'created_by', 'created_at', 'updated_at', 'is_preset', 'preset_id']
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
     def create(self, validated_data):
-        validated_data['created_by'] = self.context['request'].user
-        return super().create(validated_data)
+        try:
+            # 获取当前用户
+            user = self.context['request'].user
+            name = validated_data.get('name')
+            is_preset = validated_data.get('is_preset', False)
+            preset_id = validated_data.get('preset_id', None)
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # 特殊处理预设策略的情况
+            if is_preset and preset_id:
+                # 检查是否已经有相同preset_id的策略
+                existing = Strategy.objects.filter(
+                    created_by=user, 
+                    is_preset=True,
+                    preset_id=preset_id
+                ).first()
+                
+                if existing:
+                    # 为预设策略生成一个唯一的名称
+                    if name == existing.name:
+                        # 如果名称相同，添加一个计数器
+                        count = Strategy.objects.filter(
+                            created_by=user, 
+                            name__startswith=name
+                        ).count()
+                        name = f"{name} ({count})"
+                        validated_data['name'] = name
+                    
+                    logger.info(f"用户 {user.username} 添加预设策略 (ID: {preset_id}) 使用新名称: {name}")
+            else:
+                # 对于自定义策略，仍然检查名称唯一性
+                existing = Strategy.objects.filter(created_by=user, name=name).first()
+                if existing:
+                    raise serializers.ValidationError({
+                        'name': f'您已经创建了名为 "{name}" 的策略，请使用其他名称'
+                    })
+            
+            # 保存策略
+            validated_data['created_by'] = user
+            logger.info(f"创建策略: {name} (是否预设: {is_preset}, 预设ID: {preset_id})")
+            return super().create(validated_data)
+        except serializers.ValidationError:
+            # 重新抛出验证错误
+            raise
+        except Exception as e:
+            # 记录并转换其他异常为可读的错误信息
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"创建策略时出错: {str(e)}", exc_info=True)
+            raise serializers.ValidationError(f"创建策略失败: {str(e)}")
+            
+    def validate_name(self, value):
+        """验证策略名称"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("策略名称不能为空")
+        if len(value) > 100:
+            raise serializers.ValidationError("策略名称不能超过100个字符")
+        return value.strip()
 
 class RoundSerializer(serializers.ModelSerializer):
     class Meta:

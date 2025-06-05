@@ -13,6 +13,23 @@ from .models import Strategy, Game, Round, Tournament, TournamentParticipant, To
 from .services import GameService, TournamentService
 from .serializers import StrategySerializer, GameSerializer, TournamentSerializer
 from django.db import connection
+from django.db import models
+from django.http import JsonResponse
+from django.utils import timezone
+from django.db.models import Count, Avg, Sum, F, FloatField, ExpressionWrapper, Q
+import json
+import random
+import math
+import time
+import numpy as np
+from collections import defaultdict
+import logging
+# 导入策略模块
+from .strategies import get_all_strategies
+from rest_framework import serializers
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -24,8 +41,104 @@ class StrategyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Strategy.objects.filter(created_by=self.request.user)
     
+    def create(self, request, *args, **kwargs):
+        """重写create方法，添加更多错误处理"""
+        try:
+            # 记录创建请求
+            strategy_name = request.data.get('name', '未命名')
+            logger.info(f"用户 {request.user.username} 请求创建策略: {strategy_name}")
+            
+            # 调用父类的create方法
+            response = super().create(request, *args, **kwargs)
+            return response
+        except serializers.ValidationError as e:
+            # 记录验证错误，但保持原始错误响应
+            logger.warning(f"策略 '{strategy_name}' 创建验证错误: {str(e)}")
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # 记录任何其他异常
+            logger.error(f"创建策略 '{strategy_name}' 时出错: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'创建策略失败: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        # 检查是否是预设策略
+        preset_id = self.request.data.get('preset_id')
+        is_preset = bool(preset_id)
+        
+        try:
+            # 记录正在尝试创建的策略
+            strategy_name = self.request.data.get('name', '未命名')
+            logger.info(f"正在创建策略: {strategy_name}, 预设ID: {preset_id if is_preset else '非预设'}")
+            
+            # 检查是否已存在相同名称的策略
+            user = self.request.user
+            existing_strategy = Strategy.objects.filter(name=strategy_name, created_by=user).first()
+            if existing_strategy:
+                logger.warning(f"用户 {user.username} 尝试创建已存在的策略: {strategy_name}")
+                # 不抛出异常，而是让serializer处理这个问题
+            
+            # 保存策略，并添加预设标记
+            serializer.save(
+                created_by=self.request.user,
+                is_preset=is_preset,
+                preset_id=preset_id
+            )
+            
+            logger.info(f"策略创建成功: {strategy_name}")
+        except Exception as e:
+            logger.error(f"创建策略 '{strategy_name}' 时出错: {str(e)}", exc_info=True)
+            raise
+        
+    def destroy(self, request, *args, **kwargs):
+        strategy = self.get_object()
+        
+        # 保存删除前的策略信息，用于响应消息
+        strategy_info = {
+            'id': strategy.id,
+            'name': strategy.name,
+            'created_by': strategy.created_by.username
+        }
+        
+        try:
+            # 检查这个策略是否正在被游戏或锦标赛使用
+            games_count = Game.objects.filter(
+                models.Q(strategy1=strategy) | models.Q(strategy2=strategy)
+            ).count()
+            
+            tournament_participants_count = TournamentParticipant.objects.filter(
+                strategy=strategy
+            ).count()
+            
+            if games_count > 0 or tournament_participants_count > 0:
+                # 提供更具体的错误信息
+                error_details = []
+                if games_count > 0:
+                    error_details.append(f"该策略正在被 {games_count} 个游戏引用")
+                if tournament_participants_count > 0:
+                    error_details.append(f"该策略正在被 {tournament_participants_count} 个锦标赛引用")
+                
+                error_message = "无法删除此策略，因为它正在被使用: " + "，".join(error_details)
+                
+                return Response({
+                    'error': error_message
+                }, status=status.HTTP_409_CONFLICT)
+            
+            # 执行删除操作
+            self.perform_destroy(strategy)
+            
+            # 返回删除结果
+            return Response({
+                'message': f'策略 "{strategy_info["name"]}" 已成功删除',
+                'deleted_strategy': strategy_info
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"删除策略时出错: {e}", exc_info=True)
+            return Response({
+                'error': f'删除策略失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class GameViewSet(viewsets.ModelViewSet):
     serializer_class = GameSerializer
@@ -303,90 +416,41 @@ def api_leaderboard(request):
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def api_preset_strategies(request):
-    # 返回预设策略的列表
-    preset_strategies = [
-        {
-            'name': 'Always_Cooperate',
-            'description': '总是选择合作的简单策略',
-            'code': 'def make_move(history):\n    return "C"'
-        },
-        {
-            'name': 'Always_Defect',
-            'description': '总是选择背叛的简单策略',
-            'code': 'def make_move(history):\n    return "D"'
-        },
-        {
-            'name': 'Tit for Tat',
-            'description': '第一轮合作，之后模仿对手上一轮的选择',
-            'code': 'def make_move(history):\n    if not history:\n        return "C"  # 第一轮合作\n    return history[-1]  # 模仿对手上一轮的选择'
-        },
-        {
-            'name': 'Pavlov (胜者为王)',
-            'description': '第一轮合作，之后如果上一轮获胜则保持选择，否则改变选择',
-            'code': '''def make_move(history):
-    # 第一轮合作
-    if not history:
-        return "C"
-        
-    # 需要追踪自己的历史选择
-    my_moves = []
+    """
+    返回预设策略的列表
+    现在使用策略模块中的数据
+    """
+    # 从策略模块获取所有预设策略
+    preset_strategies = get_all_strategies()
     
-    # 计算自己之前的选择
-    for i in range(len(history)):
-        if i == 0:
-            my_moves.append("C")  # 第一轮合作
-        else:
-            prev_opponent = history[i-1]
-            prev_mine = my_moves[i-1]
-            
-            # Win-Stay, Lose-Shift策略
-            # Win: DC (我背叛,对手合作) 或 CC (双方合作)
-            # Lose: CD (我合作,对手背叛) 或 DD (双方背叛)
-            if (prev_mine == "D" and prev_opponent == "C") or (prev_mine == "C" and prev_opponent == "C"):
-                my_moves.append(prev_mine)  # 保持选择
-            else:
-                my_moves.append("D" if prev_mine == "C" else "C")  # 改变选择
+    # 返回策略列表，同时保持API兼容性
+    return Response(preset_strategies)
+
+# 获取已删除的预设策略
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def api_deleted_preset_strategies(request):
+    """
+    返回用户曾经添加但后来删除的预设策略列表
+    """
+    # 获取所有预设策略
+    preset_strategies = get_all_strategies()
     
-    # 获取上一轮对手的选择
-    last_opponent = history[-1]
-    last_mine = my_moves[-1]
+    # 获取用户当前的所有策略
+    user_strategies = Strategy.objects.filter(created_by=request.user)
     
-    # 应用Pavlov规则
-    if (last_mine == "D" and last_opponent == "C") or (last_mine == "C" and last_opponent == "C"):
-        return last_mine  # 保持选择
-    else:
-        return "D" if last_mine == "C" else "C"  # 改变选择
-'''
-        },
-        {
-            'name': 'Pavlov (简化版)',
-            'description': '胜者为王策略的简化实现 - 更简洁的代码',
-            'code': '''def make_move(history):
-    # 第一轮合作
-    if not history:
-        return "C"
+    # 找出已添加的预设策略的ID
+    existing_preset_ids = set(
+        user_strategies.filter(is_preset=True).values_list('preset_id', flat=True)
+    )
     
-    # 获取上一轮对手的选择和自己的选择
-    last_opponent = history[-1]
-    last_mine = get_my_last_move(history)
-    
-    # 应用Pavlov规则 (Win-Stay, Lose-Shift)
-    # Win: DC (我背叛,对手合作) 或 CC (双方合作)
-    # Lose: CD (我合作,对手背叛) 或 DD (双方背叛)
-    if (last_mine == "D" and last_opponent == "C") or (last_mine == "C" and last_opponent == "C"):
-        return last_mine  # 保持选择
-    else:
-        return "D" if last_mine == "C" else "C"  # 改变选择
-'''
-        },
-        {
-            'name': 'Random',
-            'description': '随机选择合作或背叛',
-            'code': 'import random\n\ndef make_move(history):\n    return random.choice(["C", "D"])'
-        }
+    # 过滤出已删除的预设策略
+    deleted_presets = [
+        preset for preset in preset_strategies 
+        if preset['id'] not in existing_preset_ids
     ]
     
-    return Response(preset_strategies)
+    return Response(deleted_presets)
 
 # 获取当前用户API
 @api_view(['GET'])
@@ -701,10 +765,47 @@ class TournamentViewSet(viewsets.ModelViewSet):
 
 @login_required
 def tournament_list(request):
-    tournaments = Tournament.objects.all().order_by('-created_at')
-    return render(request, 'dilemma_game/tournament_list.html', {
-        'tournaments': tournaments
-    })
+    try:
+        tournaments = Tournament.objects.all().order_by('-created_at')
+        
+        # 检查锦标赛对象是否有异常
+        valid_tournaments = []
+        for tournament in tournaments:
+            try:
+                # 简单访问一些属性来检测是否有异常
+                tournament_id = tournament.id
+                tournament_name = tournament.name
+                tournament_status = tournament.status
+                
+                # 尝试访问收益矩阵，这通常是出错的地方
+                try:
+                    matrix = tournament.payoff_matrix
+                except Exception as e:
+                    # 如果访问收益矩阵出错，记录但不中断
+                    print(f"锦标赛 {tournament_id} 的收益矩阵访问出错: {str(e)}")
+                    # 尝试修复收益矩阵
+                    tournament.payoff_matrix_json = '{"CC":[3,3],"CD":[0,5],"DC":[5,0],"DD":[0,0]}'
+                    tournament.save()
+                
+                # 通过测试，添加到有效列表中
+                valid_tournaments.append(tournament)
+            except Exception as e:
+                # 如果锦标赛对象异常，跳过这个对象
+                print(f"处理锦标赛对象时出错: {str(e)}")
+                continue
+        
+        return render(request, 'dilemma_game/tournament_list.html', {
+            'tournaments': valid_tournaments
+        })
+    except Exception as e:
+        # 捕获整体视图函数的异常
+        print(f"tournament_list视图出错: {str(e)}")
+        from django.contrib import messages
+        messages.error(request, f"获取锦标赛列表失败，请尝试修复功能: {str(e)}")
+        return render(request, 'dilemma_game/tournament_list.html', {
+            'error_message': f"获取锦标赛列表失败: {str(e)}",
+            'tournaments': []
+        })
 
 @login_required
 def tournament_create(request):
@@ -716,18 +817,21 @@ def tournament_create(request):
         
         # 处理收益矩阵
         try:
-            cc_reward = request.POST.getlist('cc_reward')
-            cd_reward = request.POST.getlist('cd_reward')
-            dc_reward = request.POST.getlist('dc_reward')
-            dd_reward = request.POST.getlist('dd_reward')
-            
+            # 使用新的表单字段名称获取收益矩阵值
             payoff_matrix = {
-                'CC': [float(cc_reward[0]), float(cc_reward[1])],
-                'CD': [float(cd_reward[0]), float(cd_reward[1])],
-                'DC': [float(dc_reward[0]), float(dc_reward[1])],
-                'DD': [float(dd_reward[0]), float(dd_reward[1])]
+                'CC': [float(request.POST.get('cc_reward_p1', 3)), float(request.POST.get('cc_reward_p2', 3))],
+                'CD': [float(request.POST.get('cd_reward_p1', 0)), float(request.POST.get('cd_reward_p2', 5))],
+                'DC': [float(request.POST.get('dc_reward_p1', 5)), float(request.POST.get('dc_reward_p2', 0))],
+                'DD': [float(request.POST.get('dd_reward_p1', 0)), float(request.POST.get('dd_reward_p2', 0))]
             }
-        except (IndexError, ValueError):
+            
+            # 验证收益矩阵是否有效
+            for key, values in payoff_matrix.items():
+                if len(values) != 2 or not all(isinstance(v, (int, float)) for v in values):
+                    raise ValueError(f"收益矩阵格式错误: {key}={values}")
+            
+        except ValueError as e:
+            messages.error(request, f'收益矩阵设置错误: {str(e)}')
             # 使用默认收益矩阵
             payoff_matrix = None
         
@@ -992,3 +1096,136 @@ def recalculate_tournament_stats(request, tournament_id):
     
     # 重定向到结果页面
     return redirect('tournament_results', tournament_id=tournament_id)
+
+@login_required
+def fix_tournaments(request):
+    """修复所有锦标赛记录，解决获取锦标赛列表失败的问题"""
+    try:
+        # 获取所有锦标赛
+        tournaments = Tournament.objects.all()
+        fixed_count = 0
+        
+        for tournament in tournaments:
+            # 修复收益矩阵
+            tournament.payoff_matrix_json = '{"CC":[3,3],"CD":[0,5],"DC":[5,0],"DD":[0,0]}'
+            
+            # 重置状态为CREATED
+            tournament.status = 'CREATED'
+            
+            # 保存更改
+            tournament.save()
+            
+            # 删除相关比赛
+            TournamentMatch.objects.filter(tournament=tournament).delete()
+            
+            # 重置参赛者
+            for participant in TournamentParticipant.objects.filter(tournament=tournament):
+                participant.total_score = 0
+                participant.average_score = 0
+                participant.rank = None
+                participant.wins = 0
+                participant.draws = 0
+                participant.losses = 0
+                participant.save()
+            
+            fixed_count += 1
+        
+        messages.success(request, f'成功修复 {fixed_count} 个锦标赛记录')
+        return redirect('tournament_list')
+    except Exception as e:
+        messages.error(request, f'修复锦标赛记录时出错: {str(e)}')
+        return redirect('home')
+
+@login_required
+def emergency_fix_tournaments(request):
+    """紧急修复所有锦标赛记录"""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    
+    try:
+        # 获取所有锦标赛
+        tournaments = Tournament.objects.all()
+        fixed_count = 0
+        deleted_count = 0
+        
+        for tournament in tournaments:
+            try:
+                # 检查是否有收益矩阵问题
+                try:
+                    matrix = tournament.payoff_matrix
+                except Exception:
+                    # 如果无法访问收益矩阵，则删除整个锦标赛
+                    tournament_id = tournament.id
+                    tournament_name = tournament.name
+                    tournament.delete()
+                    deleted_count += 1
+                    print(f"删除了问题锦标赛 ID={tournament_id}, 名称='{tournament_name}'")
+                    continue
+                
+                # 修复收益矩阵
+                tournament.payoff_matrix_json = '{"CC":[3,3],"CD":[0,5],"DC":[5,0],"DD":[0,0]}'
+                
+                # 重置状态
+                tournament.status = 'CREATED'
+                
+                # 保存更改
+                tournament.save()
+                
+                # 删除相关比赛
+                TournamentMatch.objects.filter(tournament=tournament).delete()
+                
+                # 重置参赛者
+                for p in TournamentParticipant.objects.filter(tournament=tournament):
+                    p.total_score = 0
+                    p.average_score = 0
+                    p.rank = None
+                    p.wins = 0
+                    p.draws = 0
+                    p.losses = 0
+                    p.save()
+                
+                fixed_count += 1
+            except Exception as e:
+                print(f"修复锦标赛 ID={tournament.id} 时出错: {str(e)}")
+        
+        if deleted_count > 0:
+            messages.warning(request, f'删除了 {deleted_count} 个无法修复的锦标赛记录')
+        
+        if fixed_count > 0:
+            messages.success(request, f'成功修复了 {fixed_count} 个锦标赛记录')
+        else:
+            messages.info(request, '没有需要修复的锦标赛记录')
+        
+        return redirect('tournament_list')
+    
+    except Exception as e:
+        messages.error(request, f'修复锦标赛时出错: {str(e)}')
+        return redirect('home')
+
+@login_required
+def reset_all_tournaments(request):
+    """完全重置所有锦标赛记录 - 紧急情况下使用"""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    
+    try:
+        # 删除所有锦标赛相关记录
+        matches_count = TournamentMatch.objects.all().count()
+        TournamentMatch.objects.all().delete()
+        
+        participants_count = TournamentParticipant.objects.all().count()
+        TournamentParticipant.objects.all().delete()
+        
+        tournaments_count = Tournament.objects.all().count()
+        Tournament.objects.all().delete()
+        
+        messages.success(
+            request, 
+            f'成功删除所有锦标赛数据: {tournaments_count} 个锦标赛, '
+            f'{participants_count} 名参赛者, {matches_count} 场比赛'
+        )
+        return redirect('tournament_list')
+    
+    except Exception as e:
+        messages.error(request, f'重置数据库出错: {str(e)}')
+        return redirect('home')

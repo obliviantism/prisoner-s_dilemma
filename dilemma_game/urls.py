@@ -7,7 +7,8 @@ from .views import (
     GameDetailView, GameListView, register_user, api_leaderboard, game_create, play_round, leaderboard,
     current_user, delete_game, TournamentViewSet, tournament_list, tournament_create, tournament_detail,
     tournament_add_participant, tournament_start, tournament_run, tournament_results, api_preset_strategies,
-    tournament_detail_api, recalculate_tournament_stats
+    tournament_detail_api, recalculate_tournament_stats, api_deleted_preset_strategies, fix_tournaments,
+    emergency_fix_tournaments, reset_all_tournaments
 )
 
 # Register API URLs
@@ -24,6 +25,7 @@ urlpatterns = [
     path('api/auth/user/', current_user, name='api-current-user'),
     path('api/leaderboard/', api_leaderboard, name='api-leaderboard'),
     path('api/preset-strategies/', api_preset_strategies, name='api-preset-strategies'),
+    path('api/deleted-preset-strategies/', api_deleted_preset_strategies, name='api-deleted-preset-strategies'),
     path('api/tournaments/<int:pk>/details/', tournament_detail_api, name='api-tournament-detail'),
     
     # Template URLs
@@ -47,4 +49,9 @@ urlpatterns = [
     path('tournaments/<int:pk>/run/', tournament_run, name='tournament_run'),
     path('tournaments/<int:tournament_id>/results/', tournament_results, name='tournament_results'),
     path('tournaments/<int:tournament_id>/recalculate/', recalculate_tournament_stats, name='recalculate_tournament_stats'),
+    
+    # 修复锦标赛URLs
+    path('tournaments/fix/', fix_tournaments, name='fix_tournaments'),
+    path('tournaments/emergency-fix/', emergency_fix_tournaments, name='emergency_fix_tournaments'),
+    path('tournaments/reset-all/', reset_all_tournaments, name='reset_all_tournaments'),
 ]

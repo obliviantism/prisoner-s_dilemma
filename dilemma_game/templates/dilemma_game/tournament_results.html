@@ -1,4 +1,5 @@
 {% extends 'dilemma_game/base.html' %}
+{% load custom_filters %}
 
 {% block title %}锦标赛结果{% endblock %}
 
@@ -64,26 +65,17 @@
                                         {{ participant.rank }}
                                         {% endif %}
                                     </td>
-                                    <td>{{ participant.strategy.name }}</td>
+                                    <td>{{ participant.strategy.name|split_first }}</td>
                                     <td>{{ participant.total_score|floatformat:1 }}</td>
                                     <td>{{ participant.average_score|floatformat:2 }}</td>
                                     <td>
                                         {{ participant.wins }}
-                                        {% comment %}调试信息{% endcomment %}
-                                        <span style="color:gray; font-size:smaller;">({{
-                                            participant.strategy.name|slice:":3" }}-{{ participant.id }})</span>
                                     </td>
                                     <td>
                                         {{ participant.draws }}
-                                        {% comment %}调试信息{% endcomment %}
-                                        <span style="color:gray; font-size:smaller;">({{
-                                            participant.strategy.name|slice:":3" }}-{{ participant.id }})</span>
                                     </td>
                                     <td>
                                         {{ participant.losses }}
-                                        {% comment %}调试信息{% endcomment %}
-                                        <span style="color:gray; font-size:smaller;">({{
-                                            participant.strategy.name|slice:":3" }}-{{ participant.id }})</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -99,7 +91,7 @@
                     const participants = [
                         {% for participant in participants %}
                                 {
-                        name: "{{ participant.strategy.name }}",
+                        name: "{{ participant.strategy.name|split_first }}",
                         rank: {{ participant.rank }},
                     totalScore: {{ participant.total_score | floatformat: 1 }},
                     avgScore: {{ participant.average_score | floatformat: 2 }}

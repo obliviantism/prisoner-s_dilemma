@@ -93,8 +93,8 @@
                     <span class="badge" :class="getRankBadgeClass(participant.rank)">{{ participant.rank }}</span>
                   </td>
                   <td>
-                    <span>{{ participant.strategy.name }}</span>
-                    <small v-if="participant.strategy.description" class="d-block text-muted">
+                    <span>{{ participant.strategy ? removeIdFromStrategyName(participant.strategy.name) : '未知策略' }}</span>
+                    <small v-if="participant.strategy && participant.strategy.description" class="d-block text-muted">
                       {{ truncateText(participant.strategy.description, 80) }}
                     </small>
                   </td>
@@ -115,13 +115,13 @@
                 <tr>
                   <th></th>
                   <th v-for="participant in sortedParticipants" :key="participant.id">
-                    {{ participant.strategy ? participant.strategy.name : '未知策略' }}
+                    {{ participant.strategy ? removeIdFromStrategyName(participant.strategy.name) : '未知策略' }}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="p1 in sortedParticipants" :key="p1.id">
-                  <th class="table-secondary">{{ p1.strategy ? p1.strategy.name : '未知策略' }}</th>
+                  <th class="table-secondary">{{ p1.strategy ? removeIdFromStrategyName(p1.strategy.name) : '未知策略' }}</th>
                   <td v-for="p2 in sortedParticipants" :key="p2.id" :class="getCellClass(p1, p2)">
                     <div v-if="p1.id === p2.id" class="text-center">--</div>
                     <div v-else>
@@ -369,7 +369,20 @@ export default {
       if (!this.tournament.participants) return strategyId
       
       const participant = this.tournament.participants.find(p => p && p.strategy && p.strategy.id === strategyId)
-      return participant && participant.strategy ? participant.strategy.name : strategyId
+      if (participant && participant.strategy) {
+        return this.removeIdFromStrategyName(participant.strategy.name)
+      }
+      return strategyId
+    },
+    removeIdFromStrategyName(name) {
+      if (!name) return name
+      
+      // 查找类似 "-1749125404044" 的模式
+      const match = name.match(/(-\d{10,})/)
+      if (match) {
+        return name.substring(0, match.index)
+      }
+      return name
     },
     countMoves(rounds, playerIndex, move) {
       if (!rounds) return 0

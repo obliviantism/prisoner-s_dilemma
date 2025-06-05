@@ -21,6 +21,22 @@
     </div>
     {% endif %}
 
+    {% if error_message %}
+    <div class="alert alert-danger">
+        <h5 class="alert-heading">错误信息</h5>
+        <p>{{ error_message }}</p>
+        <hr>
+        <div class="d-flex justify-content-between">
+            <p class="mb-0">请尝试以下修复方法:</p>
+            <div>
+                <a href="{% url 'fix_tournaments' %}" class="btn btn-outline-primary btn-sm">标准修复</a>
+                <a href="{% url 'emergency_fix_tournaments' %}" class="btn btn-outline-warning btn-sm">紧急修复</a>
+                <a href="{% url 'reset_all_tournaments' %}" class="btn btn-outline-danger btn-sm">重置所有数据</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if tournaments %}
     <div class="card">
         <div class="card-header bg-primary text-white">
@@ -51,14 +67,26 @@
                             <td>
                                 {% if tournament.status == 'CREATED' %}
                                 <span class="badge bg-info">已创建</span>
-                                {% elif tournament.status == 'IN_PROGRESS' %}
-                                <span class="badge bg-warning">进行中</span>
+                                {% elif tournament.status == 'STARTED' %}
+                                <span class="badge bg-primary">已开始</span>
+                                {% elif tournament.status == 'RUNNING' %}
+                                <span class="badge bg-warning">运行中</span>
                                 {% elif tournament.status == 'COMPLETED' %}
                                 <span class="badge bg-success">已完成</span>
+                                {% elif tournament.status == 'ERROR' %}
+                                <span class="badge bg-danger">错误</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ tournament.status }}</span>
                                 {% endif %}
                             </td>
                             <td>{{ tournament.participants.count }}</td>
-                            <td>{{ tournament.rounds_per_match }}</td>
+                            <td>
+                                {% if tournament.use_random_rounds %}
+                                随机({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
+                                {% else %}
+                                {{ tournament.rounds_per_match }}
+                                {% endif %}
+                            </td>
                             <td>{{ tournament.repetitions }}</td>
                             <td>{{ tournament.created_at|date:"Y-m-d H:i" }}</td>
                             <td>
@@ -87,5 +115,26 @@
         <p>暂无锦标赛，点击"创建锦标赛"按钮开始创建。</p>
     </div>
     {% endif %}
+
+    <div class="mt-4">
+        <div class="card">
+            <div class="card-header bg-light">工具箱</div>
+            <div class="card-body">
+                <p class="card-text">如果您遇到锦标赛列表或数据问题，可以使用以下工具：</p>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'fix_tournaments' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-wrench"></i> 标准修复
+                    </a>
+                    <a href="{% url 'emergency_fix_tournaments' %}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-exclamation-triangle"></i> 紧急修复
+                    </a>
+                    <a href="{% url 'reset_all_tournaments' %}" class="btn btn-outline-danger btn-sm"
+                        onclick="return confirm('此操作将删除所有锦标赛数据！确定要继续吗？');">
+                        <i class="bi bi-trash"></i> 重置所有数据
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

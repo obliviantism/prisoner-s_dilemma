@@ -5,8 +5,11 @@
       <router-link to="/strategies/create" class="btn btn-primary me-2">
         创建新策略
       </router-link>
-      <button class="btn btn-success" @click="showPresetModalDialog">
+      <button class="btn btn-success me-2" @click="showPresetModalDialog">
         添加预设策略
+      </button>
+      <button class="btn btn-info" @click="showDeletedPresetModalDialog">
+        恢复已删除预设策略
       </button>
     </div>
 
@@ -141,184 +144,123 @@
         </div>
       </div>
     </div>
+
+    <!-- 已删除预设策略模态框 -->
+    <div class="modal fade" id="deletedPresetStrategyModal" tabindex="-1" ref="deletedPresetStrategyModal"
+         aria-labelledby="deletedPresetStrategyModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="deletedPresetStrategyModalLabel">恢复已删除的预设策略</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div v-if="loadingDeletedPresets" class="text-center">
+              <loading-spinner text="加载中..." />
+            </div>
+            <div v-else-if="deletedPresets.length === 0" class="alert alert-info">
+              没有找到已删除的预设策略。您可能尚未删除任何预设策略，或者已经全部恢复。
+            </div>
+            <div v-else>
+              <p>以下是您曾经添加但已删除的预设策略：</p>
+              
+              <div v-if="addingPresets" class="text-center my-4">
+                <div class="spinner-border" role="status">
+                  <span class="visually-hidden">添加中...</span>
+                </div>
+                <p class="mt-2">正在恢复预设策略，请稍候...</p>
+                <div class="progress">
+                  <div class="progress-bar" :style="{ width: progressPercentage + '%' }">
+                    {{ addedCount }}/{{ selectedPresets.length }}
+                  </div>
+                </div>
+              </div>
+              
+              <div v-else>
+                <div class="mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAllDeleted" 
+                           :checked="selectedPresets.length === deletedPresets.length"
+                           @change="toggleSelectAllDeleted">
+                    <label class="form-check-label" for="selectAllDeleted">
+                      <strong>全选/取消全选</strong>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px;"></th>
+                        <th>策略名称</th>
+                        <th>描述</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(preset, index) in deletedPresets" :key="index">
+                        <td>
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                  :id="'deleted-preset-' + index"
+                                  v-model="selectedPresets"
+                                  :value="index">
+                          </div>
+                        </td>
+                        <td><strong>{{ preset.name }}</strong></td>
+                        <td>{{ preset.description }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" :disabled="addingPresets">
+              取消
+            </button>
+            <button type="button" class="btn btn-primary" @click="addSelectedDeletedPresets" 
+                    :disabled="selectedPresets.length === 0 || addingPresets">
+              恢复选中的策略
+            </button>
+            <button type="button" class="btn btn-success" @click="addAllDeletedPresets" 
+                    :disabled="deletedPresets.length === 0 || addingPresets">
+              一键恢复全部
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import { Modal } from 'bootstrap';
+import axios from 'axios';
 
 export default {
-  name: 'StrategyListView',
+  name: 'StrategyList',
   components: {
     LoadingSpinner
   },
   data() {
     return {
       strategies: [],
-      loading: true,
+      loading: false,
       showDeleteConfirm: false,
       strategyToDelete: null,
       deleting: false,
       showPresetModal: false,
       selectedPresets: [],
-      addingPresets: false,
-      addedCount: 0,
-      presetModal: null,
       availablePresets: [],
-      presetStrategies: [
-        {
-          name: "始终合作 (Always Cooperate)",
-          description: "无论对手采取什么行动，该策略都始终选择合作。",
-          code: `def make_move(opponent_history):
-    """
-    始终合作策略
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作
-    """
-    return 'C'  # 始终选择合作
-`
-        },
-        {
-          name: "始终背叛 (Always Defect)",
-          description: "无论对手采取什么行动，该策略都始终选择背叛。",
-          code: `def make_move(opponent_history):
-    """
-    始终背叛策略
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'D' 表示背叛
-    """
-    return 'D'  # 始终选择背叛
-`
-        },
-        {
-          name: "针锋相对 (Tit for Tat)",
-          description: "第一回合选择合作，随后模仿对手上一回合的选择。这是一种简单但非常有效的策略。",
-          code: `def make_move(opponent_history):
-    """
-    针锋相对策略 (Tit for Tat)
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    if not opponent_history:  # 第一轮
-        return 'C'  # 首轮选择合作
-    
-    # 模仿对手上一轮的选择
-    return opponent_history[-1]
-`
-        },
-        {
-          name: "宽容版针锋相对 (Tit for Two Tats)",
-          description: "只有当对手连续两次背叛时才选择背叛，其他情况选择合作。比标准的针锋相对更宽容。",
-          code: `def make_move(opponent_history):
-    """
-    宽容版针锋相对策略 (Tit for Two Tats)
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    if len(opponent_history) < 2:  # 前两轮
-        return 'C'  # 选择合作
-    
-    # 只有当对手连续两次背叛时才背叛
-    if opponent_history[-1] == 'D' and opponent_history[-2] == 'D':
-        return 'D'
-    return 'C'
-`
-        },
-        {
-          name: "随机策略 (Random)",
-          description: "随机选择合作或背叛，各50%的概率。",
-          code: `import random
-
-def make_move(opponent_history):
-    """
-    随机策略
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    # 随机返回 'C' 或 'D'，各50%的概率
-    return random.choice(['C', 'D'])
-`
-        },
-        {
-          name: "怀疑者 (Suspicious Tit for Tat)",
-          description: "第一回合选择背叛，随后模仿对手上一回合的选择。是针锋相对的一个变种。",
-          code: `def make_move(opponent_history):
-    """
-    怀疑者策略 (Suspicious Tit for Tat)
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    if not opponent_history:  # 第一轮
-        return 'D'  # 首轮选择背叛
-    
-    # 模仿对手上一轮的选择
-    return opponent_history[-1]
-`
-        },
-        {
-          name: "grudger (永不原谅)",
-          description: "开始时选择合作，但如果对手曾经背叛过，则永远选择背叛。",
-          code: `def make_move(opponent_history):
-    """
-    永不原谅策略 (Grudger)
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    if not opponent_history:  # 第一轮
-        return 'C'  # 首轮选择合作
-    
-    # 如果对手曾经背叛过，永远选择背叛
-    if 'D' in opponent_history:
-        return 'D'
-    return 'C'
-`
-        },
-        {
-          name: "pavlov (胜者为王)",
-          description: "如果上一回合双方选择相同（都合作或都背叛），则这一回合选择合作；否则选择背叛。",
-          code: `def make_move(opponent_history):
-    """
-    胜者为王策略 (Pavlov)
-    
-    :param opponent_history: 对手历史选择的列表
-    :return: 'C' 表示合作，'D' 表示背叛
-    """
-    if not opponent_history:  # 第一轮
-        return 'C'  # 首轮选择合作
-    
-    # 获取自己上一轮的选择
-    my_last_move = get_my_last_move(opponent_history)
-    
-    # 如果双方选择相同，选择合作；否则选择背叛
-    if my_last_move == opponent_history[-1]:
-        return 'C'
-    return 'D'
-
-def get_my_last_move(opponent_history):
-    """
-    根据对手历史推断自己上一轮的选择
-    这是一个简化版，假设我们遵循Pavlov策略
-    """
-    if len(opponent_history) == 1:
-        return 'C'  # 假设第一轮我们选择了合作
-    
-    # 递归确定上一轮的选择
-    prev_my_move = get_my_last_move(opponent_history[:-1])
-    
-    if prev_my_move == opponent_history[-2]:
-        return 'C'
-    return 'D'
-`
-        }
-      ]
+      deletedPresets: [],
+      loadingDeletedPresets: false,
+      addingPresets: false,
+      presetModal: null,
+      deletedPresetModal: null,
+      addedCount: 0
     }
   },
   computed: {
@@ -329,6 +271,7 @@ def get_my_last_move(opponent_history):
   },
   created() {
     this.fetchStrategies()
+    this.fetchPresetStrategies()
   },
   mounted() {
     // 初始化Bootstrap模态框
@@ -342,12 +285,23 @@ def get_my_last_move(opponent_history):
           this.presetModal = new Modal(this.$refs.presetStrategyModal);
         }
       }
+      
+      if (this.$refs.deletedPresetStrategyModal) {
+        if (window.bootstrap) {
+          this.deletedPresetModal = new window.bootstrap.Modal(this.$refs.deletedPresetStrategyModal);
+        } else {
+          this.deletedPresetModal = new Modal(this.$refs.deletedPresetStrategyModal);
+        }
+      }
     });
   },
   beforeUnmount() {
     // 清理Bootstrap模态框
     if (this.presetModal) {
       this.presetModal.dispose();
+    }
+    if (this.deletedPresetModal) {
+      this.deletedPresetModal.dispose();
     }
   },
   methods: {
@@ -362,6 +316,46 @@ def get_my_last_move(opponent_history):
         this.loading = false
       }
     },
+    async fetchPresetStrategies() {
+      try {
+        // 从API获取预设策略列表
+        const response = await this.$store.dispatch('fetchPresetStrategies')
+        this.availablePresets = response
+        
+        // 过滤掉已经添加的策略
+        this.filterExistingPresets()
+      } catch (error) {
+        console.error('获取预设策略失败:', error)
+        this.$store.commit('setError', '获取预设策略失败: ' + error.message)
+      }
+    },
+    filterExistingPresets() {
+      // 记录一下当前已有策略
+      console.log('当前所有策略:', this.strategies);
+      
+      // 获取当前已有策略的preset_id列表
+      const existingPresetIds = this.strategies
+        .filter(s => s.is_preset) // 只选择是预设策略的
+        .map(s => s.preset_id);   // 获取预设ID
+      
+      console.log('现有预设策略IDs:', existingPresetIds);
+      
+      // 不再过滤掉已经添加的预设策略，允许重复添加
+      // this.availablePresets = this.availablePresets.filter(preset => {
+      //   // 如果该预设ID不在现有预设策略中，则允许添加
+      //   return !existingPresetIds.includes(preset.id);
+      // });
+      
+      console.log('可添加的预设策略:', this.availablePresets.length);
+      
+      // 如果没有可用的预设策略，返回false
+      if (this.availablePresets.length === 0) {
+        this.$emit('alert', '没有找到可用的预设策略', 'info');
+        return false;
+      }
+      
+      return true;
+    },
     confirmDelete(strategy) {
       this.strategyToDelete = strategy
       this.showDeleteConfirm = true
@@ -375,13 +369,40 @@ def get_my_last_move(opponent_history):
       
       try {
         this.deleting = true
+        console.log(`开始删除策略: ${this.strategyToDelete.name} (ID: ${this.strategyToDelete.id})`)
+        
         await this.$store.dispatch('deleteStrategy', this.strategyToDelete.id)
+        
+        // 删除成功，显示成功消息
+        this.$emit('alert', `策略 "${this.strategyToDelete.name}" 已成功删除`, 'success')
+        
         // 刷新策略列表
         await this.fetchStrategies()
         this.showDeleteConfirm = false
         this.strategyToDelete = null
       } catch (error) {
-        this.$store.commit('setError', '删除策略失败: ' + error.message)
+        console.error('删除策略失败:', error)
+        
+        // 提供更具体的错误消息
+        let errorMessage = '删除策略失败'
+        
+        if (error.response) {
+          // 服务器返回的错误
+          if (error.response.status === 403) {
+            errorMessage = '没有权限删除此策略'
+          } else if (error.response.status === 404) {
+            errorMessage = '策略不存在或已被删除'
+          } else if (error.response.status === 409 || error.response.status === 500) {
+            // 冲突或服务器错误 - 可能是外键约束
+            errorMessage = '无法删除此策略，因为它正在被游戏或锦标赛使用'
+          } else if (error.response.data && error.response.data.error) {
+            // 服务器返回的具体错误消息
+            errorMessage = error.response.data.error
+          }
+        }
+        
+        // 显示错误消息
+        this.$emit('alert', errorMessage, 'danger')
       } finally {
         this.deleting = false
       }
@@ -413,15 +434,55 @@ def get_my_last_move(opponent_history):
       this.addedCount = 0;
       
       try {
-        // 创建选中的预设策略
+        // 创建选中的预设策略，逐个添加并添加更多的错误日志
         for (const index of this.selectedPresets) {
-          const preset = this.availablePresets[index];
-          await this.$store.dispatch('createStrategy', {
-            name: preset.name,
-            description: preset.description,
-            code: preset.code
-          });
-          this.addedCount++;
+          try {
+            const preset = this.availablePresets[index];
+            
+            // 生成唯一名称
+            const timestamp = new Date().getTime();
+            const strategyName = `${preset.name}-${timestamp}`;
+            
+            console.log(`尝试添加策略: ${strategyName}`, {
+              name: strategyName,
+              description: preset.description,
+              code_length: preset.code ? preset.code.length : 0,
+              preset_id: preset.id
+            });
+            
+            // 创建一个精简版的策略，只包含必要字段
+            const strategyData = {
+              name: strategyName,
+              description: preset.description || '预设策略',
+              code: preset.code,
+              preset_id: preset.id
+            };
+            
+            // 使用axios直接发送请求，而不是通过Vuex
+            const token = localStorage.getItem('token');
+            const response = await axios.post('http://localhost:8000/api/strategies/', strategyData, {
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            console.log(`成功添加策略: ${strategyName}`, response.data);
+            this.addedCount++;
+            
+            // 添加短暂延迟，避免服务器压力
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } catch (err) {
+            console.error('添加策略错误:', err);
+            console.error('错误详情:', {
+              message: err.message,
+              status: err.response?.status,
+              data: err.response?.data
+            });
+            
+            // 继续添加其他策略
+            continue;
+          }
         }
         
         // 刷新策略列表
@@ -436,10 +497,14 @@ def get_my_last_move(opponent_history):
         // 显示成功消息
         this.$emit('alert', `成功添加了 ${this.addedCount} 个预设策略`, 'success');
       } catch (error) {
-        console.error('添加预设策略失败:', error);
-        this.$store.commit('setError', '添加预设策略失败: ' + error.message);
+        console.error('添加预设策略过程中发生错误:', error);
+        this.$emit('alert', '添加预设策略失败: ' + (error.message || '未知错误'), 'danger');
       } finally {
         this.addingPresets = false;
+        this.addedCount = 0;
+        
+        // 重新获取可用的预设策略
+        await this.fetchPresetStrategies();
       }
     },
     showPresetModalDialog() {
@@ -470,24 +535,136 @@ def get_my_last_move(opponent_history):
         });
       }
     },
-    
-    // 过滤掉已经添加过的预设策略
-    filterExistingPresets() {
-      // 获取已有策略的名称集合
-      const existingNames = new Set(this.strategies.map(s => s.name));
-      
-      // 过滤可用的预设策略
-      this.availablePresets = this.presetStrategies.filter(preset => 
-        !existingNames.has(preset.name)
-      );
-      
-      // 如果没有可用的预设策略，显示提示信息
-      if (this.availablePresets.length === 0) {
-        this.$emit('alert', '您已添加所有预设策略，无法再次添加', 'info');
-        return false;
+    async fetchDeletedPresetStrategies() {
+      try {
+        this.loadingDeletedPresets = true;
+        this.deletedPresets = await this.$store.dispatch('fetchDeletedPresetStrategies');
+        console.log('已删除的预设策略:', this.deletedPresets);
+      } catch (error) {
+        console.error('获取已删除的预设策略失败:', error);
+        this.$emit('alert', '获取已删除的预设策略失败: ' + error.message, 'danger');
+      } finally {
+        this.loadingDeletedPresets = false;
       }
+    },
+    toggleSelectAllDeleted(event) {
+      if (event.target.checked) {
+        // 全选
+        this.selectedPresets = this.deletedPresets.map((_, index) => index);
+      } else {
+        // 取消全选
+        this.selectedPresets = [];
+      }
+    },
+    showDeletedPresetModalDialog() {
+      this.selectedPresets = [];
+      this.fetchDeletedPresetStrategies().then(() => {
+        if (this.deletedPresets.length === 0) {
+          this.$emit('alert', '没有找到已删除的预设策略', 'info');
+          return;
+        }
+        
+        if (this.deletedPresetModal) {
+          this.deletedPresetModal.show();
+        } else {
+          this.$nextTick(() => {
+            if (this.$refs.deletedPresetStrategyModal) {
+              if (window.bootstrap) {
+                this.deletedPresetModal = new window.bootstrap.Modal(this.$refs.deletedPresetStrategyModal);
+              } else {
+                this.deletedPresetModal = new Modal(this.$refs.deletedPresetStrategyModal);
+              }
+              this.deletedPresetModal.show();
+            } else {
+              console.error('Deleted Preset Modal element not found');
+            }
+          });
+        }
+      });
+    },
+    addAllDeletedPresets() {
+      this.selectedPresets = this.deletedPresets.map((_, index) => index);
+      this.addSelectedDeletedPresets();
+    },
+    async addSelectedDeletedPresets() {
+      if (this.selectedPresets.length === 0) return;
       
-      return true;
+      this.addingPresets = true;
+      this.addedCount = 0;
+      
+      try {
+        // 创建选中的预设策略，逐个添加并添加更多的错误日志
+        for (const index of this.selectedPresets) {
+          try {
+            const preset = this.deletedPresets[index];
+            
+            // 生成唯一名称
+            const timestamp = new Date().getTime();
+            const strategyName = `${preset.name}-${timestamp}`;
+            
+            console.log(`尝试恢复策略: ${strategyName}`, {
+              name: strategyName,
+              description: preset.description,
+              code_length: preset.code ? preset.code.length : 0,
+              preset_id: preset.id
+            });
+            
+            // 创建一个精简版的策略，只包含必要字段
+            const strategyData = {
+              name: strategyName,
+              description: preset.description || '预设策略',
+              code: preset.code,
+              preset_id: preset.id
+            };
+            
+            // 使用axios直接发送请求，而不是通过Vuex
+            const token = localStorage.getItem('token');
+            const response = await axios.post('http://localhost:8000/api/strategies/', strategyData, {
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            console.log(`成功恢复策略: ${strategyName}`, response.data);
+            this.addedCount++;
+            
+            // 添加短暂延迟，避免服务器压力
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } catch (err) {
+            console.error('恢复策略错误:', err);
+            console.error('错误详情:', {
+              message: err.message,
+              status: err.response?.status,
+              data: err.response?.data
+            });
+            
+            // 继续添加其他策略
+            continue;
+          }
+        }
+        
+        // 刷新策略列表
+        await this.fetchStrategies();
+        
+        // 关闭模态框
+        if (this.deletedPresetModal) {
+          this.deletedPresetModal.hide();
+        }
+        this.selectedPresets = [];
+        
+        // 显示成功消息
+        this.$emit('alert', `成功恢复了 ${this.addedCount} 个预设策略`, 'success');
+      } catch (error) {
+        console.error('恢复预设策略过程中发生错误:', error);
+        this.$emit('alert', '恢复预设策略失败: ' + (error.message || '未知错误'), 'danger');
+      } finally {
+        this.addingPresets = false;
+        this.addedCount = 0;
+        
+        // 重新获取已删除的预设策略
+        await this.fetchDeletedPresetStrategies();
+      }
     }
   }
 }

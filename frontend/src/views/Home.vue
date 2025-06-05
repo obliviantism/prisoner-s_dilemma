@@ -2,12 +2,9 @@
   <div class="home">
     <div class="row">
       <div class="col-md-8 offset-md-2 text-center">
-        <h1 class="display-4 mb-4">囚徒困境</h1>
+        <h1 class="display-4 mb-4">重复囚徒困境</h1>
         <p class="lead mb-4">
-          测试您的策略在这个经典的合作与欺骗博弈中的表现。
-        </p>
-        <p class="lead mb-4">          
-          您会选择合作还是欺骗？
+          通过每一轮的竞赛，测试您的策略在这个经典的合作与欺骗博弈中的表现。
         </p>
       </div>
     </div>

@@ -2,6 +2,17 @@ from datetime import datetime
 from typing import Tuple, Dict, List, Any
 from django.utils import timezone
 from .models import Game, Round, Strategy, Tournament, TournamentParticipant, TournamentMatch
+import random
+import time
+from collections import defaultdict
+import math
+import json
+import logging
+# 导入策略模块
+from .strategies import execute_strategy as exec_strategy
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
 
 class GameService:
     @staticmethod
@@ -11,90 +22,49 @@ class GameService:
             ('C', 'C'): (3, 3),    # Both cooperate
             ('C', 'D'): (0, 5),    # Player 1 cooperates, Player 2 deceives
             ('D', 'C'): (5, 0),    # Player 1 deceives, Player 2 cooperates
-            ('D', 'D'): (1, 1),    # Both deceive
+            ('D', 'D'): (0, 0),    # Both deceive
         }
         return score_matrix[(player1_choice, player2_choice)]
 
     @staticmethod
     def execute_strategy(strategy: Strategy, opponent_history: List[str]) -> str:
-        """Safely execute a strategy code to get the next move."""
+        """Execute a strategy based on opponent's history."""
         try:
-            # 创建一个局部环境
-            local_vars = {'history': opponent_history}
+            logger.debug(f"执行策略 {strategy.name} 对抗历史: {opponent_history}")
             
-            # 创建一个受限的全局环境，只包含安全的模块
+            # 检查策略代码是否为空
+            if not strategy.code or not strategy.code.strip():
+                logger.warning(f"策略 {strategy.name} 没有代码，返回随机选择")
+                return random.choice(['C', 'D'])  # 改为随机选择
+            
+            # 准备执行环境
             safe_globals = {
-                'random': __import__('random'),
-                'math': __import__('math'),
-                'time': __import__('time')
+                'random': random,
             }
+            local_vars = {}
             
-            # 尝试从策略名称判断是否为内置策略
-            if strategy.name == 'Always_Cooperate':
-                return 'C'
-            elif strategy.name == 'Always_Defect':
-                return 'D'
-            elif strategy.name == 'Tit for Tat' or strategy.name.lower() == 'tit for tat':
-                # Tit for tat策略：第一轮合作，之后模仿对手上一轮的选择
-                if not opponent_history:
-                    return 'C'  # 第一轮合作
-                return opponent_history[-1]  # 之后模仿对手上一轮的选择
-            elif strategy.name == 'Pavlov' or strategy.name.lower() == 'pavlov' or '胜者为王' in strategy.name:
-                # Pavlov策略 (Win-Stay, Lose-Shift)：
-                # 第一轮合作，然后：
-                # - 如果上一轮我赢了(DC)或双方合作(CC)，保持上一轮的选择
-                # - 如果上一轮我输了(CD)或双方背叛(DD)，改变上一轮的选择
-                if not opponent_history:
-                    return 'C'  # 第一轮合作
-                
-                # 简化的Pavlov策略实现
-                # 使用游戏历史跟踪我们的动作
-                my_history = []
-                
-                # 模拟我们到目前为止的历史选择
-                for i in range(len(opponent_history)):
-                    if i == 0:
-                        # 第一轮始终合作
-                        my_history.append('C')
-                    else:
-                        prev_opponent_move = opponent_history[i-1]
-                        prev_my_move = my_history[i-1]
-                        
-                        # Pavlov逻辑：Win-Stay, Lose-Shift
-                        # Win: DC (我背叛,对手合作) 或 CC (双方合作)
-                        # Lose: CD (我合作,对手背叛) 或 DD (双方背叛)
-                        if (prev_my_move == 'D' and prev_opponent_move == 'C') or \
-                           (prev_my_move == 'C' and prev_opponent_move == 'C'):
-                            # 我赢了或双方合作，保持选择
-                            my_history.append(prev_my_move)
-                        else:
-                            # 我输了或双方背叛，改变选择
-                            my_history.append('D' if prev_my_move == 'C' else 'C')
-                
-                # 获取当前轮次应该做的选择
-                last_opponent_move = opponent_history[-1]
-                last_my_move = my_history[-1]
-                
-                # 应用相同的Pavlov规则决定下一步
-                if (last_my_move == 'D' and last_opponent_move == 'C') or \
-                   (last_my_move == 'C' and last_opponent_move == 'C'):
-                    # 我赢了或双方合作，保持选择
-                    return last_my_move
-                else:
-                    # 我输了或双方背叛，改变选择
-                    return 'D' if last_my_move == 'C' else 'C'
+            # 尝试使用预设策略的简化ID（通常是英文名称的小写形式）
+            strategy_id = None
+            if strategy.is_preset and strategy.preset_id:
+                strategy_id = strategy.preset_id
+            else:
+                # 尝试从名称生成ID
+                strategy_id = strategy.name.lower().replace(' ', '_')
+            
+            # 首先尝试查找预设策略
+            try:
+                # 尝试使用策略模块的execute_strategy函数
+                return exec_strategy(strategy_id, opponent_history)
+            except Exception as e:
+                logger.debug(f"未找到预设策略 {strategy_id}，尝试执行自定义代码: {e}")
+                # 继续执行自定义策略代码
+                pass
             
             # 执行自定义策略代码
-            # 注意：这是一个安全风险，生产环境中应该使用沙箱执行
-            if 'def make_move(' in strategy.code:
-                try:
-                    # 为Pavlov策略提供必要的辅助函数和历史跟踪
-                    setup_code = ""
-                    
-                    # 如果策略代码中包含get_my_last_move，添加辅助函数实现
-                    if 'get_my_last_move' in strategy.code:
-                        # 为自定义策略提供get_my_last_move函数实现
-                        setup_code = """
+            try:
+                # 为Pavlov策略提供必要的辅助函数
+                if 'get_my_last_move' in strategy.code:
+                    setup_code = """
 def get_my_last_move(history):
     # 此函数跟踪自己之前的选择
     my_moves = []
@@ -115,33 +85,32 @@ def get_my_last_move(history):
     
     return my_moves[-1] if my_moves else "C"
 """
-                    
-                    # 首先执行辅助代码，然后执行策略代码
-                    if setup_code:
-                        exec(setup_code, safe_globals, local_vars)
-                    
-                    exec(strategy.code, safe_globals, local_vars)
-                    
-                    # 然后确保make_move函数存在
-                    if 'make_move' in local_vars and callable(local_vars['make_move']):
-                        # 调用make_move函数
-                        result = local_vars['make_move'](opponent_history)
-                        if result in ['C', 'D']:
-                            return result
+                    exec(setup_code, safe_globals, local_vars)
+                
+                # 执行策略代码
+                exec(strategy.code, safe_globals, local_vars)
+                
+                # 然后确保make_move函数存在
+                if 'make_move' in local_vars and callable(local_vars['make_move']):
+                    # 调用make_move函数
+                    result = local_vars['make_move'](opponent_history)
+                    if result in ['C', 'D']:
+                        return result
                     else:
-                        print(f"错误：策略 {strategy.name} 中没有找到可调用的make_move函数")
-                except Exception as e:
-                    print(f"执行策略 {strategy.name} 的make_move函数时出错: {e}")
-            else:
-                print(f"错误：策略 {strategy.name} 中没有找到make_move函数定义")
+                        logger.warning(f"策略 {strategy.name} 返回了无效结果: {result}，返回随机选择")
+                        return random.choice(['C', 'D'])  # 返回随机选择
+                else:
+                    logger.warning(f"策略 {strategy.name} 中没有找到可调用的make_move函数")
+            except Exception as e:
+                logger.error(f"执行策略 {strategy.name} 的make_move函数时出错: {e}")
             
-            # 执行失败时默认返回合作
-            print(f"警告：策略 {strategy.name} 执行失败，默认返回合作")
-            return 'C'
+            # 执行失败时返回随机选择，而不是总是合作
+            logger.warning(f"策略 {strategy.name} 执行失败，返回随机选择")
+            return random.choice(['C', 'D'])
         except Exception as e:
-            print(f"策略 {strategy.name} 执行过程中发生错误: {e}")
-            # 出错时默认合作
-            return 'C'
+            logger.error(f"策略 {strategy.name} 执行过程中发生错误: {e}")
+            # 出错时返回随机选择
+            return random.choice(['C', 'D'])
 
     @staticmethod
     def play_round(game: Game) -> Round:
@@ -387,7 +356,6 @@ class TournamentService:
         rounds_data = []
         
         # 如果使用随机回合数，则在指定范围内随机生成回合数
-        import random
         rounds_to_play = random.randint(tournament.min_rounds, tournament.max_rounds) if tournament.use_random_rounds else tournament.rounds_per_match
         
         # 进行指定回合数的对局

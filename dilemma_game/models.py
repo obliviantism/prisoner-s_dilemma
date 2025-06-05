@@ -9,6 +9,10 @@ class Strategy(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # 新增字段，标识是否为预设策略
+    is_preset = models.BooleanField(default=False)
+    # 预设策略的ID，用于再次添加
+    preset_id = models.CharField(max_length=50, blank=True, null=True)
 
     def __str__(self):
         return self.name
