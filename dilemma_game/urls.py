@@ -7,7 +7,7 @@ from .views import (
     GameDetailView, GameListView, register_user, api_leaderboard, game_create, play_round, leaderboard,
     current_user, delete_game, TournamentViewSet, tournament_list, tournament_create, tournament_detail,
     tournament_add_participant, tournament_start, tournament_run, tournament_results, api_preset_strategies,
-    tournament_detail_api
+    tournament_detail_api, recalculate_tournament_stats
 )
 
 # Register API URLs
@@ -45,5 +45,6 @@ urlpatterns = [
     path('tournaments/<int:pk>/add-participant/', tournament_add_participant, name='tournament_add_participant'),
     path('tournaments/<int:pk>/start/', tournament_start, name='tournament_start'),
     path('tournaments/<int:pk>/run/', tournament_run, name='tournament_run'),
-    path('tournaments/<int:pk>/results/', tournament_results, name='tournament_results'),
+    path('tournaments/<int:tournament_id>/results/', tournament_results, name='tournament_results'),
+    path('tournaments/<int:tournament_id>/recalculate/', recalculate_tournament_stats, name='recalculate_tournament_stats'),
 ]

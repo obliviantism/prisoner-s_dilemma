@@ -48,6 +48,11 @@
                         class="btn btn-success">
               <i class="bi bi-trophy"></i> 查看结果
             </router-link>
+            <button v-if="tournament.status === 'COMPLETED' && tournament.id" 
+                   @click="checkResultsAvailable" 
+                   class="btn btn-info ms-2">
+              <i class="bi bi-search"></i> 检查结果数据
+            </button>
           </div>
         </div>
         <div class="card-body">
@@ -123,6 +128,9 @@
                   <th>策略名称</th>
                   <th>总分</th>
                   <th>平均分</th>
+                  <th>胜场数</th>
+                  <th>平局数</th>
+                  <th>负场数</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,6 +139,9 @@
                   <td>{{ participant.strategy.name }}</td>
                   <td>{{ formatScore(participant.total_score) }}</td>
                   <td>{{ formatScore(participant.average_score) }}</td>
+                  <td>{{ participant.wins || '-' }}</td>
+                  <td>{{ participant.draws || '-' }}</td>
+                  <td>{{ participant.losses || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -147,63 +158,98 @@
       </div>
       
       <!-- 添加参赛者模态框 -->
-      <div class="modal fade" id="addParticipantModal" tabindex="-1" aria-labelledby="addParticipantModalLabel" aria-hidden="true" ref="addParticipantModal">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="addParticipantModalLabel">添加参赛者</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <div v-if="loadingStrategies" class="text-center my-3">
-                <LoadingSpinner />
-              </div>
-              <div v-else-if="availableStrategies.length === 0" class="alert alert-info">
-                没有可添加的策略。请先创建一些策略。
-              </div>
-              <div v-else>
-                <form>
-                  <div class="mb-3">
-                    <label class="form-label">选择要添加的策略</label>
-                    <div class="table-responsive">
-                      <table class="table table-striped">
-                        <thead>
-                          <tr>
-                            <th style="width: 50px;"></th>
-                            <th>策略名称</th>
-                            <th>描述</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="strategy in availableStrategies" :key="strategy.id">
-                            <td>
-                              <div class="form-check">
-                                <input class="form-check-input" type="checkbox" 
-                                      :id="'strategy-' + strategy.id"
-                                      v-model="selectedStrategies" 
-                                      :value="strategy.id">
-                              </div>
-                            </td>
-                            <td>{{ strategy.name }}</td>
-                            <td>{{ truncateText(strategy.description, 100) }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </form>
+      <BaseModal :show="showModal" title="添加参赛者" @close="showModal = false">
+        <div v-if="loadingStrategies" class="text-center my-3">
+          <LoadingSpinner />
+        </div>
+        <div v-else-if="availableStrategies.length === 0" class="alert alert-info">
+          没有可添加的策略。请先创建一些策略。
+        </div>
+        <div v-else>
+          <form>
+            <div class="mb-3">
+              <label class="form-label">选择要添加的策略</label>
+              <div class="table-responsive">
+                <table class="table table-striped">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" 
+                                id="select-all-strategies"
+                                v-model="selectAllChecked"
+                                @change="toggleSelectAll">
+                          <label class="form-check-label" for="select-all-strategies">全选</label>
+                        </div>
+                      </th>
+                      <th>策略名称</th>
+                      <th>描述</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="strategy in availableStrategies" :key="strategy.id">
+                      <td>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" 
+                                :id="'strategy-' + strategy.id"
+                                v-model="selectedStrategies" 
+                                :value="strategy.id">
+                        </div>
+                      </td>
+                      <td>{{ strategy.name }}</td>
+                      <td>{{ truncateText(strategy.description, 100) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-primary" 
-                    @click="confirmAddParticipants" 
-                    :disabled="selectedStrategies.length === 0 || addingParticipants">
-                <span v-if="addingParticipants" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                {{ addingParticipants ? '添加中...' : '添加选中的策略' }}
-              </button>
-            </div>
-          </div>
+          </form>
+        </div>
+        
+        <template #footer>
+          <button type="button" class="btn btn-outline-primary me-auto" 
+                 @click="selectAllStrategies">
+            <i class="bi bi-check-all"></i> 全选策略
+          </button>
+          <button type="button" class="btn btn-outline-secondary" 
+                 @click="clearAllStrategies">
+            <i class="bi bi-x-lg"></i> 取消全选
+          </button>
+          <button type="button" class="btn btn-secondary" @click="showModal = false">取消</button>
+          <button type="button" class="btn btn-primary" 
+                @click="confirmAddParticipants" 
+                :disabled="selectedStrategies.length === 0 || addingParticipants">
+            <span v-if="addingParticipants" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            {{ addingParticipants ? '添加中...' : '添加选中的策略' }}
+          </button>
+        </template>
+      </BaseModal>
+    </div>
+    
+    <!-- 调试区域 (仅限开发环境) -->
+    <div v-if="isDevelopment" class="card mt-4 border-warning">
+      <div class="card-header bg-warning text-dark">
+        <h3 class="mb-0">调试区域</h3>
+      </div>
+      <div class="card-body">
+        <h5>锦标赛信息</h5>
+        <p>
+          <strong>ID:</strong> {{ tournament.id }}<br>
+          <strong>状态:</strong> {{ tournament.status }}<br>
+          <strong>数据结构:</strong> {{ Object.keys(tournament).join(', ') }}
+        </p>
+        
+        <div class="mb-3">
+          <button @click="debugFetchResults" class="btn btn-outline-primary">
+            直接调用 API 获取结果
+          </button>
+          <button @click="debugTestMatchupsMatrix" class="btn btn-outline-info ms-2">
+            测试构建对战矩阵
+          </button>
+        </div>
+        
+        <div v-if="debugResult" class="alert" :class="debugSuccess ? 'alert-success' : 'alert-danger'">
+          <pre class="mb-0">{{ JSON.stringify(debugResult, null, 2) }}</pre>
         </div>
       </div>
     </div>
@@ -213,12 +259,13 @@
 <script>
 import { mapGetters } from 'vuex'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
-import { Modal } from 'bootstrap'
+import BaseModal from '@/components/BaseModal.vue'
 
 export default {
   name: 'TournamentDetail',
   components: {
-    LoadingSpinner
+    LoadingSpinner,
+    BaseModal
   },
   data() {
     return {
@@ -229,7 +276,11 @@ export default {
       addingParticipants: false,
       availableStrategies: [],
       selectedStrategies: [],
-      modal: null
+      selectAllChecked: false,
+      showModal: false,
+      debugResult: null,
+      debugSuccess: false,
+      isDevelopment: process.env.NODE_ENV === 'development'
     }
   },
   computed: {
@@ -249,6 +300,14 @@ export default {
         // 都没有排名，按平均分排序
         return b.average_score - a.average_score
       })
+    }
+  },
+  watch: {
+    selectedStrategies(newVal) {
+      // 如果所有可用策略都被选中，则自动勾选全选框
+      if (this.availableStrategies.length > 0) {
+        this.selectAllChecked = newVal.length === this.availableStrategies.length
+      }
     }
   },
   methods: {
@@ -297,23 +356,9 @@ export default {
     },
     addParticipant() {
       this.selectedStrategies = []
+      this.selectAllChecked = false
       this.fetchAvailableStrategies()
-      if (this.modal) {
-        this.modal.show()
-      } else {
-        this.$nextTick(() => {
-          if (this.$refs.addParticipantModal) {
-            if (window.bootstrap) {
-              this.modal = new window.bootstrap.Modal(this.$refs.addParticipantModal)
-            } else {
-              this.modal = new Modal(this.$refs.addParticipantModal)
-            }
-            this.modal.show()
-          } else {
-            console.error('Modal element not found')
-          }
-        })
-      }
+      this.showModal = true
     },
     async confirmAddParticipants() {
       if (this.selectedStrategies.length === 0) return
@@ -333,9 +378,7 @@ export default {
         await this.fetchTournament()
         
         // 关闭模态框并显示成功消息
-        if (this.modal) {
-          this.modal.hide()
-        }
+        this.showModal = false
         this.$emit('alert', `成功添加了 ${this.selectedStrategies.length} 个参赛者`, 'success')
         
         // 清空选择列表
@@ -400,6 +443,15 @@ export default {
       if (!text) return ''
       return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
     },
+    toggleSelectAll() {
+      if (this.selectAllChecked) {
+        // 全选所有可用策略
+        this.selectedStrategies = this.availableStrategies.map(strategy => strategy.id)
+      } else {
+        // 取消全选
+        this.selectedStrategies = []
+      }
+    },
     getBadgeClass(status) {
       switch (status) {
         case 'CREATED': return 'bg-info'
@@ -415,30 +467,92 @@ export default {
         case 'COMPLETED': return '已完成'
         default: return '未知'
       }
-    }
-  },
-  mounted() {
-    // 初始化Bootstrap模态框
-    this.$nextTick(() => {
-      if (this.$refs.addParticipantModal) {
-        // 使用全局Bootstrap实例
-        if (window.bootstrap) {
-          this.modal = new window.bootstrap.Modal(this.$refs.addParticipantModal);
-        } else {
-          // 如果全局实例不可用，则使用导入的Modal
-          this.modal = new Modal(this.$refs.addParticipantModal);
+    },
+    selectAllStrategies() {
+      this.selectedStrategies = this.availableStrategies.map(strategy => strategy.id)
+      this.selectAllChecked = true
+    },
+    clearAllStrategies() {
+      this.selectedStrategies = []
+      this.selectAllChecked = false
+    },
+    async debugFetchResults() {
+      try {
+        const response = await this.$store.dispatch('getTournamentResults', this.tournament.id)
+        this.debugResult = response
+        this.debugSuccess = true
+      } catch (error) {
+        console.error('调试API调用失败:', error)
+        this.debugResult = {
+          error: error.message,
+          details: error.response ? {
+            status: error.response.status,
+            data: error.response.data
+          } : 'No response details'
         }
+        this.debugSuccess = false
       }
-    });
+    },
+    async debugTestMatchupsMatrix() {
+      try {
+        // 获取锦标赛详情
+        const tournamentData = await this.$store.dispatch('fetchTournament', this.tournament.id)
+        
+        // 分析参赛者数据结构
+        const participantsInfo = tournamentData.participants ? tournamentData.participants.map(p => ({
+          id: p.id,
+          hasStrategy: !!p.strategy,
+          strategyId: p.strategy ? p.strategy.id : null,
+          strategyName: p.strategy ? p.strategy.name : null
+        })) : []
+        
+        this.debugResult = {
+          tournamentFound: !!tournamentData,
+          tournamentStatus: tournamentData.status,
+          participantsCount: participantsInfo.length,
+          participantsInfo,
+          hasMatchupsMatrix: !!tournamentData.matchups_matrix,
+          matchupsMatrixType: tournamentData.matchups_matrix ? typeof tournamentData.matchups_matrix : 'undefined',
+        }
+        
+        this.debugSuccess = true
+      } catch (error) {
+        console.error('调试测试失败:', error)
+        this.debugResult = {
+          error: error.message,
+          details: error.response ? {
+            status: error.response.status,
+            data: error.response.data
+          } : 'No response details'
+        }
+        this.debugSuccess = false
+      }
+    },
+    async checkResultsAvailable() {
+      try {
+        this.isProcessing = true
+        await this.$store.dispatch('getTournamentResults', this.tournament.id)
+        this.$router.push(`/tournaments/${this.tournament.id}/results`)
+      } catch (error) {
+        // 显示更友好的错误提示
+        this.$bvToast.toast(`无法获取结果: ${error.message}`, {
+          title: '结果检查失败',
+          variant: 'danger',
+          solid: true
+        })
+        console.error('检查结果失败:', error)
+      } finally {
+        this.isProcessing = false
+      }
+    }
   },
   created() {
     this.fetchTournament()
   },
-  beforeUnmount() {
-    // 清理Bootstrap模态框
-    if (this.modal) {
-      this.modal.dispose()
-    }
+  beforeRouteLeave(to, from, next) {
+    // 确保在导航离开前关闭Modal
+    this.showModal = false
+    next()
   }
 }
 </script>

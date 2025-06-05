@@ -321,7 +321,7 @@ def api_preset_strategies(request):
             'code': 'def make_move(history):\n    if not history:\n        return "C"  # 第一轮合作\n    return history[-1]  # 模仿对手上一轮的选择'
         },
         {
-            'name': 'Pavlov',
+            'name': 'Pavlov (胜者为王)',
             'description': '第一轮合作，之后如果上一轮获胜则保持选择，否则改变选择',
             'code': '''def make_move(history):
     # 第一轮合作
@@ -352,6 +352,27 @@ def api_preset_strategies(request):
     last_mine = my_moves[-1]
     
     # 应用Pavlov规则
+    if (last_mine == "D" and last_opponent == "C") or (last_mine == "C" and last_opponent == "C"):
+        return last_mine  # 保持选择
+    else:
+        return "D" if last_mine == "C" else "C"  # 改变选择
+'''
+        },
+        {
+            'name': 'Pavlov (简化版)',
+            'description': '胜者为王策略的简化实现 - 更简洁的代码',
+            'code': '''def make_move(history):
+    # 第一轮合作
+    if not history:
+        return "C"
+    
+    # 获取上一轮对手的选择和自己的选择
+    last_opponent = history[-1]
+    last_mine = get_my_last_move(history)
+    
+    # 应用Pavlov规则 (Win-Stay, Lose-Shift)
+    # Win: DC (我背叛,对手合作) 或 CC (双方合作)
+    # Lose: CD (我合作,对手背叛) 或 DD (双方背叛)
     if (last_mine == "D" and last_opponent == "C") or (last_mine == "C" and last_opponent == "C"):
         return last_mine  # 保持选择
     else:
@@ -557,7 +578,10 @@ class TournamentViewSet(viewsets.ModelViewSet):
                 'strategy_name': p.strategy.name,
                 'rank': p.rank,
                 'total_score': p.total_score,
-                'average_score': p.average_score
+                'average_score': p.average_score,
+                'wins': p.wins,
+                'draws': p.draws,
+                'losses': p.losses
             })
         
         return Response(result)
@@ -601,19 +625,76 @@ class TournamentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):
         """获取锦标赛结果"""
-        tournament = self.get_object()
-        
-        if tournament.status != 'COMPLETED':
-            return Response({
-                'error': 'Tournament is not completed yet',
-                'status': tournament.status
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            results = TournamentService.get_tournament_results(tournament)
-            return Response(results)
-        
+            tournament = self.get_object()
+            
+            # 记录调试信息
+            print(f"获取锦标赛结果，ID: {pk}, 状态: {tournament.status}")
+            
+            if tournament.status != 'COMPLETED':
+                print(f"锦标赛 {pk} 未完成，当前状态: {tournament.status}")
+                return Response({
+                    'error': f'Tournament is not completed yet. Current status: {tournament.status}',
+                    'status': tournament.status
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 获取并打印参赛者信息
+            participants = list(tournament.participants.all())
+            print(f"锦标赛 {pk} 有 {len(participants)} 个参赛者")
+            
+            try:
+                # 获取结果
+                results = TournamentService.get_tournament_results(tournament)
+                
+                # 增强返回的数据，添加参赛者完整信息
+                participants_data = []
+                for p in tournament.participants.all():
+                    try:
+                        participant_data = {
+                            'id': p.id,
+                            'rank': p.rank,
+                            'total_score': p.total_score,
+                            'average_score': p.average_score,
+                            'wins': p.wins,
+                            'draws': p.draws,
+                            'losses': p.losses,
+                        }
+                        
+                        # 添加策略信息
+                        if hasattr(p, 'strategy') and p.strategy:
+                            participant_data['strategy'] = {
+                                'id': p.strategy.id,
+                                'name': p.strategy.name,
+                                'description': p.strategy.description
+                            }
+                        else:
+                            participant_data['strategy'] = None
+                            print(f"警告：参赛者 {p.id} 没有关联的策略")
+                            
+                        participants_data.append(participant_data)
+                    except Exception as e:
+                        print(f"处理参赛者 {p.id} 时出错: {str(e)}")
+                
+                # 替换原有的participants数据
+                results['participants'] = participants_data
+                
+                # 确保id字段存在
+                results['id'] = tournament.id
+                
+                # 打印结果摘要
+                print(f"锦标赛结果包含字段: {', '.join(results.keys())}")
+                print(f"matchups_matrix类型: {type(results.get('matchups_matrix'))}")
+                
+                return Response(results)
+                
+            except Exception as e:
+                print(f"获取锦标赛 {pk} 结果时出错: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
         except Exception as e:
+            print(f"访问锦标赛 {pk} 时出错: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # 添加锦标赛的模板视图
@@ -732,19 +813,78 @@ def tournament_run(request, pk):
     return redirect('tournament_detail', pk=tournament.id)
 
 @login_required
-def tournament_results(request, pk):
-    tournament = get_object_or_404(Tournament, pk=pk)
+def tournament_results(request, tournament_id):
+    """显示锦标赛结果"""
+    tournament = get_object_or_404(Tournament, id=tournament_id)
     
     if tournament.status != 'COMPLETED':
-        messages.error(request, 'Tournament is not completed yet.')
+        messages.error(request, '锦标赛尚未完成。')
         return redirect('tournament_detail', pk=tournament.id)
     
     participants = TournamentParticipant.objects.filter(tournament=tournament).order_by('rank')
     
-    return render(request, 'dilemma_game/tournament_results.html', {
+    # 确保每个参赛者的胜负平数据都已初始化
+    for p in participants:
+        # 打印调试信息
+        print(f"参赛者 {p.strategy.name}: 胜={p.wins}, 平={p.draws}, 负={p.losses}")
+        
+        if p.wins is None or p.draws is None or p.losses is None:
+            try:
+                # 作为玩家1的比赛
+                matches_as_p1 = TournamentMatch.objects.filter(
+                    tournament=tournament,
+                    participant1=p,
+                    status='COMPLETED'
+                )
+                
+                # 作为玩家2的比赛
+                matches_as_p2 = TournamentMatch.objects.filter(
+                    tournament=tournament,
+                    participant2=p,
+                    status='COMPLETED'
+                )
+                
+                # 计算胜负平
+                wins = 0
+                losses = 0
+                draws = 0
+                
+                # 作为玩家1的胜负平
+                for match in matches_as_p1:
+                    if match.player1_score > match.player2_score:
+                        wins += 1
+                    elif match.player1_score < match.player2_score:
+                        losses += 1
+                    else:
+                        draws += 1
+                
+                # 作为玩家2的胜负平
+                for match in matches_as_p2:
+                    if match.player2_score > match.player1_score:
+                        wins += 1
+                    elif match.player2_score < match.player1_score:
+                        losses += 1
+                    else:
+                        draws += 1
+                
+                # 更新参赛者的胜负平
+                p.wins = wins
+                p.draws = draws
+                p.losses = losses
+                p.save()
+                
+                print(f"已更新参赛者 {p.strategy.name}: 胜={p.wins}, 平={p.draws}, 负={p.losses}")
+            except Exception as e:
+                print(f"计算胜负平时出错: {str(e)}")
+    
+    # 刷新参赛者数据
+    participants = TournamentParticipant.objects.filter(tournament=tournament).order_by('rank')
+    
+    context = {
         'tournament': tournament,
         'participants': participants
-    })
+    }
+    return render(request, 'dilemma_game/tournament_results.html', context)
 
 # 添加专门的API视图函数获取锦标赛详情
 @api_view(['GET'])
@@ -769,7 +909,10 @@ def tournament_detail_api(request, pk):
                     },
                     'total_score': p.total_score,
                     'average_score': p.average_score,
-                    'rank': p.rank
+                    'rank': p.rank,
+                    'wins': p.wins,
+                    'draws': p.draws,
+                    'losses': p.losses
                 })
             except Exception as e:
                 print(f"处理参赛者时出错 (id={p.id}): {str(e)}")
@@ -829,3 +972,23 @@ def tournament_detail_api(request, pk):
             {'error': f'获取锦标赛详情失败: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@login_required
+def recalculate_tournament_stats(request, tournament_id):
+    """重新计算指定锦标赛的胜负平统计"""
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    
+    # 检查权限，只有创建者或管理员可以重新计算
+    if request.user != tournament.created_by and not request.user.is_staff:
+        messages.error(request, "您没有权限执行此操作")
+        return redirect('tournament_detail', tournament_id=tournament_id)
+    
+    # 重新计算结果
+    try:
+        TournamentService.calculate_results(tournament)
+        messages.success(request, "锦标赛胜负平统计已成功更新")
+    except Exception as e:
+        messages.error(request, f"更新失败: {str(e)}")
+    
+    # 重定向到结果页面
+    return redirect('tournament_results', tournament_id=tournament_id)

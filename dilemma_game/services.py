@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Tuple, Dict, List, Any
+from django.utils import timezone
 from .models import Game, Round, Strategy, Tournament, TournamentParticipant, TournamentMatch
 
 class GameService:
@@ -38,7 +39,7 @@ class GameService:
                 if not opponent_history:
                     return 'C'  # 第一轮合作
                 return opponent_history[-1]  # 之后模仿对手上一轮的选择
-            elif strategy.name == 'Pavlov' or strategy.name.lower() == 'pavlov':
+            elif strategy.name == 'Pavlov' or strategy.name.lower() == 'pavlov' or '胜者为王' in strategy.name:
                 # Pavlov策略 (Win-Stay, Lose-Shift)：
                 # 第一轮合作，然后：
                 # - 如果上一轮我赢了(DC)或双方合作(CC)，保持上一轮的选择
@@ -87,7 +88,38 @@ class GameService:
             # 注意：这是一个安全风险，生产环境中应该使用沙箱执行
             if 'def make_move(' in strategy.code:
                 try:
-                    # 首先执行策略代码
+                    # 为Pavlov策略提供必要的辅助函数和历史跟踪
+                    setup_code = ""
+                    
+                    # 如果策略代码中包含get_my_last_move，添加辅助函数实现
+                    if 'get_my_last_move' in strategy.code:
+                        # 为自定义策略提供get_my_last_move函数实现
+                        setup_code = """
+def get_my_last_move(history):
+    # 此函数跟踪自己之前的选择
+    my_moves = []
+    
+    # 计算自己之前的选择
+    for i in range(len(history)):
+        if i == 0:
+            my_moves.append("C")  # 默认第一轮合作
+        else:
+            prev_opponent = history[i-1]
+            prev_mine = my_moves[i-1]
+            
+            # 使用Pavlov策略规则 (Win-Stay, Lose-Shift)
+            if (prev_mine == "D" and prev_opponent == "C") or (prev_mine == "C" and prev_opponent == "C"):
+                my_moves.append(prev_mine)  # 保持选择
+            else:
+                my_moves.append("D" if prev_mine == "C" else "C")  # 改变选择
+    
+    return my_moves[-1] if my_moves else "C"
+"""
+                    
+                    # 首先执行辅助代码，然后执行策略代码
+                    if setup_code:
+                        exec(setup_code, safe_globals, local_vars)
+                    
                     exec(strategy.code, safe_globals, local_vars)
                     
                     # 然后确保make_move函数存在
@@ -153,7 +185,7 @@ class GameService:
         # Check if game is complete
         if game.current_round >= game.total_rounds:
             game.status = 'COMPLETED'
-            game.completed_at = datetime.now()
+            game.completed_at = timezone.now()
 
         game.save()
         return round
@@ -386,7 +418,7 @@ class TournamentService:
         match.player1_score = p1_score
         match.player2_score = p2_score
         match.status = 'COMPLETED'
-        match.completed_at = datetime.now()
+        match.completed_at = timezone.now()
         match.save()
         
         # 返回比赛结果
@@ -444,7 +476,7 @@ class TournamentService:
         
         # 更新锦标赛状态为已完成
         tournament.status = 'COMPLETED'
-        tournament.completed_at = datetime.now()
+        tournament.completed_at = timezone.now()
         tournament.save()
         
         # 返回锦标赛结果
@@ -481,12 +513,41 @@ class TournamentService:
             total_score = sum(m.player1_score for m in matches_as_p1) + sum(m.player2_score for m in matches_as_p2)
             total_matches = matches_as_p1.count() + matches_as_p2.count()
             
+            # 计算胜负平
+            wins = 0
+            losses = 0
+            draws = 0
+            
+            # 计算作为玩家1的胜负平
+            for match in matches_as_p1:
+                if match.player1_score > match.player2_score:
+                    wins += 1
+                elif match.player1_score < match.player2_score:
+                    losses += 1
+                else:
+                    draws += 1
+            
+            # 计算作为玩家2的胜负平
+            for match in matches_as_p2:
+                if match.player2_score > match.player1_score:
+                    wins += 1
+                elif match.player2_score < match.player1_score:
+                    losses += 1
+                else:
+                    draws += 1
+            
             # 计算平均分
             average_score = total_score / total_matches if total_matches > 0 else 0
             
-            # 更新参赛者的分数
+            # 更新参赛者的分数和胜负平
             participant.total_score = total_score
             participant.average_score = average_score
+            
+            # 保存胜负平数据
+            participant.wins = wins
+            participant.draws = draws
+            participant.losses = losses
+            
             participant.save()
         
         # 根据平均分对参赛者排名
@@ -516,13 +577,25 @@ class TournamentService:
         # 构建参赛者结果列表
         participant_results = []
         for p in participants:
-            participant_results.append({
+            result = {
                 'rank': p.rank,
                 'strategy_name': p.strategy.name,
                 'strategy_id': p.strategy.id,
                 'total_score': p.total_score,
                 'average_score': p.average_score
-            })
+            }
+            
+            # 添加胜负平数据（如果存在）
+            try:
+                result['wins'] = p.wins
+                result['draws'] = p.draws
+                result['losses'] = p.losses
+            except Exception:
+                result['wins'] = 0
+                result['draws'] = 0
+                result['losses'] = 0
+                
+            participant_results.append(result)
         
         # 构建详细的对阵矩阵
         all_participants = list(participants)
@@ -531,7 +604,7 @@ class TournamentService:
         for p1 in all_participants:
             matchups_matrix[p1.strategy.name] = {}
             for p2 in all_participants:
-                # 计算p1和p2之间的平均得分
+                # 获取p1和p2之间的所有比赛
                 matches = TournamentMatch.objects.filter(
                     tournament=tournament,
                     participant1=p1,
@@ -540,10 +613,23 @@ class TournamentService:
                 )
                 
                 if matches.exists():
-                    avg_score = sum(m.player1_score for m in matches) / matches.count()
-                    matchups_matrix[p1.strategy.name][p2.strategy.name] = avg_score
+                    # 计算总分和胜负平
+                    total_score = sum(m.player1_score for m in matches)
+                    avg_score = total_score / matches.count()
+                    wins = sum(1 for m in matches if m.player1_score > m.player2_score)
+                    draws = sum(1 for m in matches if m.player1_score == m.player2_score)
+                    losses = sum(1 for m in matches if m.player1_score < m.player2_score)
+                    
+                    # 保存更详细的对战数据
+                    matchups_matrix[p1.strategy.name][p2.strategy.name] = {
+                        'avg_score': avg_score,
+                        'wins': wins,
+                        'draws': draws,
+                        'losses': losses,
+                        'total': matches.count()
+                    }
                 else:
-                    matchups_matrix[p1.strategy.name][p2.strategy.name] = 0
+                    matchups_matrix[p1.strategy.name][p2.strategy.name] = 'N/A'
         
         # 构建最终结果字典
         return {

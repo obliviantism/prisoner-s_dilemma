@@ -12,7 +12,14 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 // 全局确保Bootstrap在每个组件中可用
 window.bootstrap = require('bootstrap/dist/js/bootstrap.bundle.min.js')
 
+// 添加全局错误处理
 const app = createApp(App)
+
+// 全局错误处理
+app.config.errorHandler = (err, vm, info) => {
+    console.error('Vue错误:', err)
+    console.error('错误信息:', info)
+}
 
 app.use(router)
 app.use(store)

@@ -96,6 +96,10 @@ class TournamentParticipant(models.Model):
     total_score = models.FloatField(default=0)  # 锦标赛中的总分
     average_score = models.FloatField(default=0)  # 平均每场得分
     rank = models.IntegerField(null=True, blank=True)  # 排名
+    # 添加胜负平统计
+    wins = models.IntegerField(default=0)  # 胜场数
+    draws = models.IntegerField(default=0)  # 平局数
+    losses = models.IntegerField(default=0)  # 负场数
     
     class Meta:
         unique_together = ['tournament', 'strategy']

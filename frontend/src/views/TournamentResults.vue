@@ -5,7 +5,20 @@
     </div>
     
     <div v-else-if="error" class="alert alert-danger">
-      {{ error }}
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>获取锦标赛结果失败</h4>
+          <p class="mb-0">{{ error }}</p>
+        </div>
+        <div>
+          <button @click="fetchTournamentResults" class="btn btn-outline-danger me-2">
+            <i class="bi bi-arrow-clockwise me-1"></i>重试
+          </button>
+          <router-link to="/tournaments" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left me-1"></i>返回列表
+          </router-link>
+        </div>
+      </div>
     </div>
     
     <div v-else>
@@ -102,17 +115,23 @@
                 <tr>
                   <th></th>
                   <th v-for="participant in sortedParticipants" :key="participant.id">
-                    {{ participant.strategy.name }}
+                    {{ participant.strategy ? participant.strategy.name : '未知策略' }}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="p1 in sortedParticipants" :key="p1.id">
-                  <th class="table-secondary">{{ p1.strategy.name }}</th>
+                  <th class="table-secondary">{{ p1.strategy ? p1.strategy.name : '未知策略' }}</th>
                   <td v-for="p2 in sortedParticipants" :key="p2.id" :class="getCellClass(p1, p2)">
                     <div v-if="p1.id === p2.id" class="text-center">--</div>
                     <div v-else>
-                      {{ getMatchResult(p1, p2) }}
+                      <div v-if="getMatchDetails(p1, p2) !== 'N/A'">
+                        <strong>{{ getMatchResult(p1, p2) }}</strong>
+                        <small class="d-block" v-if="getWinLossDraw(p1, p2) !== 'N/A'">
+                          {{ getWinLossDraw(p1, p2) }}
+                        </small>
+                      </div>
+                      <div v-else>N/A</div>
                     </div>
                   </td>
                 </tr>
@@ -150,7 +169,7 @@
                       <div class="col-md-6">
                         <h5>比赛信息</h5>
                         <p>
-                          <strong>回合数:</strong> {{ match.rounds.length }}<br>
+                          <strong>回合数:</strong> {{ match.rounds ? match.rounds.length : 0 }}<br>
                           <strong>策略1:</strong> {{ getStrategyName(match.strategy1_id) }}<br>
                           <strong>策略2:</strong> {{ getStrategyName(match.strategy2_id) }}<br>
                           <strong>得分:</strong> {{ formatScore(match.score1) }} - {{ formatScore(match.score2) }}
@@ -180,12 +199,12 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="(round, roundIndex) in match.rounds" :key="roundIndex">
+                          <tr v-for="(round, roundIndex) in match.rounds || []" :key="roundIndex">
                             <td>{{ roundIndex + 1 }}</td>
-                            <td>{{ round.moves[0] }}</td>
-                            <td>{{ round.moves[1] }}</td>
-                            <td>{{ round.scores[0] }}</td>
-                            <td>{{ round.scores[1] }}</td>
+                            <td>{{ round && round.moves ? round.moves[0] : 'N/A' }}</td>
+                            <td>{{ round && round.moves ? round.moves[1] : 'N/A' }}</td>
+                            <td>{{ round && round.scores ? round.scores[0] : 'N/A' }}</td>
+                            <td>{{ round && round.scores ? round.scores[1] : 'N/A' }}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -225,7 +244,11 @@ export default {
     sortedParticipants() {
       if (!this.tournament.participants) return []
       
-      return [...this.tournament.participants].sort((a, b) => {
+      // 过滤掉没有strategy属性的参赛者
+      const validParticipants = this.tournament.participants.filter(p => p && p.strategy)
+      
+      // 按排名排序
+      return [...validParticipants].sort((a, b) => {
         return a.rank - b.rank
       })
     }
@@ -237,10 +260,34 @@ export default {
       
       try {
         await this.$store.dispatch('getTournamentResults', this.$route.params.id)
+        console.log('API返回的锦标赛结果数据:', this.tournament)
+        
+        // 检查是否有必要的数据
+        if (!this.tournament || !this.tournament.id) {
+          throw new Error('无法加载锦标赛数据，请确认锦标赛是否存在')
+        }
+        
+        // 检查matchups_matrix数据结构
+        console.log('matchups_matrix数据结构:', this.tournament.matchups_matrix)
+        if (!this.tournament.matchups_matrix) {
+          console.warn('警告：锦标赛没有matchups_matrix数据')
+        } else {
+          console.log('matchups_matrix类型:', typeof this.tournament.matchups_matrix)
+          console.log('matchups_matrix是否为对象:', this.tournament.matchups_matrix instanceof Object)
+        }
+        
+        // 构建对战矩阵
         this.buildMatchMatrix()
       } catch (error) {
         console.error('获取锦标赛结果失败:', error)
-        this.error = '获取锦标赛结果失败，请重试'
+        
+        // 记录更详细的错误信息
+        if (error.response) {
+          console.error('错误响应状态:', error.response.status)
+          console.error('错误响应数据:', error.response.data)
+        }
+        
+        this.error = error.message || '获取锦标赛结果失败，请重试'
       } finally {
         this.loading = false
       }
@@ -249,51 +296,80 @@ export default {
       // 构建对战矩阵，方便查询
       this.matchMatrix = {}
       
-      if (!this.tournament.match_results) return
+      // 使用后端提供的matchups_matrix
+      if (!this.tournament.matchups_matrix) {
+        console.error('matchups_matrix不存在!', this.tournament)
+        // 确保不返回undefined，而是空数组，避免后续操作中的空指针异常
+        this.tournament.matchups_matrix = []
+        return
+      }
       
-      this.tournament.match_results.forEach(match => {
-        const key1 = `${match.strategy1_id}-${match.strategy2_id}`
-        this.matchMatrix[key1] = {
-          score1: match.score1,
-          score2: match.score2,
-          winner: match.score1 > match.score2 ? 1 : (match.score1 < match.score2 ? 2 : 0)
-        }
-        
-        const key2 = `${match.strategy2_id}-${match.strategy1_id}`
-        this.matchMatrix[key2] = {
-          score1: match.score2,
-          score2: match.score1,
-          winner: match.score2 > match.score1 ? 1 : (match.score2 < match.score1 ? 2 : 0)
-        }
-      })
+      console.log('使用matchups_matrix构建对战矩阵:', this.tournament.matchups_matrix)
+      
+      // 直接使用后端提供的对战矩阵数据
+      this.matchMatrix = this.tournament.matchups_matrix
+      console.log('构建的matchMatrix:', this.matchMatrix)
     },
     getMatchResult(p1, p2) {
-      if (p1.id === p2.id) return '--'
+      if (!p1 || !p2) return 'N/A'
       
-      const key = `${p1.strategy.id}-${p2.strategy.id}`
-      const match = this.matchMatrix[key]
+      // 检查strategy是否存在
+      if (!p1.strategy || !p2.strategy) {
+        console.error('策略不存在:', p1, p2)
+        return 'N/A'
+      }
       
-      if (!match) return 'N/A'
+      // 使用嵌套对象格式的matchups_matrix
+      if (this.tournament.matchups_matrix) {
+        const p1Name = p1.strategy.name
+        const p2Name = p2.strategy.name
+        
+        // 检查matchups_matrix是否有对应的数据
+        if (this.tournament.matchups_matrix[p1Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] !== 'N/A') {
+          const matchData = this.tournament.matchups_matrix[p1Name][p2Name]
+          return this.formatScore(matchData.avg_score)
+        }
+      }
       
-      return `${this.formatScore(match.score1)} - ${this.formatScore(match.score2)}`
+      return 'N/A'
     },
     getCellClass(p1, p2) {
-      if (p1.id === p2.id) return 'bg-light'
+      if (!p1 || !p2) return ''
       
-      const key = `${p1.strategy.id}-${p2.strategy.id}`
-      const match = this.matchMatrix[key]
+      // 检查strategy是否存在
+      if (!p1.strategy || !p2.strategy) {
+        return 'na-cell'
+      }
       
-      if (!match) return ''
+      // 如果是自己与自己的对决
+      if (p1.id === p2.id) return 'self-match'
       
-      if (match.winner === 1) return 'bg-success bg-opacity-25'
-      if (match.winner === 2) return 'bg-danger bg-opacity-25'
-      return 'bg-warning bg-opacity-25' // 平局
+      // 检查matchups_matrix是否有对应的数据
+      const p1Name = p1.strategy.name
+      const p2Name = p2.strategy.name
+      
+      if (this.tournament.matchups_matrix 
+          && this.tournament.matchups_matrix[p1Name] 
+          && this.tournament.matchups_matrix[p1Name][p2Name]
+          && this.tournament.matchups_matrix[p1Name][p2Name] !== 'N/A') {
+        
+        const matchData = this.tournament.matchups_matrix[p1Name][p2Name]
+        
+        // 根据胜负情况设置样式
+        if (matchData.wins > matchData.losses) return 'win-cell'
+        if (matchData.losses > matchData.wins) return 'loss-cell'
+        return 'draw-cell'
+      }
+      
+      return 'na-cell'
     },
     getStrategyName(strategyId) {
       if (!this.tournament.participants) return strategyId
       
-      const participant = this.tournament.participants.find(p => p.strategy.id === strategyId)
-      return participant ? participant.strategy.name : strategyId
+      const participant = this.tournament.participants.find(p => p && p.strategy && p.strategy.id === strategyId)
+      return participant && participant.strategy ? participant.strategy.name : strategyId
     },
     countMoves(rounds, playerIndex, move) {
       if (!rounds) return 0
@@ -323,6 +399,56 @@ export default {
       if (rank === 2) return 'bg-secondary' // 银牌
       if (rank === 3) return 'bg-danger' // 铜牌
       return 'bg-primary'
+    },
+    getMatchDetails(p1, p2) {
+      if (!p1 || !p2) return 'N/A'
+      
+      // 检查strategy是否存在
+      if (!p1.strategy || !p2.strategy) {
+        console.error('策略不存在:', p1, p2)
+        return 'N/A'
+      }
+      
+      // 使用嵌套对象格式的matchups_matrix
+      if (this.tournament.matchups_matrix) {
+        const p1Name = p1.strategy.name
+        const p2Name = p2.strategy.name
+        
+        // 检查matchups_matrix是否有对应的数据
+        if (this.tournament.matchups_matrix[p1Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] !== 'N/A') {
+          const matchData = this.tournament.matchups_matrix[p1Name][p2Name]
+          return this.formatScore(matchData.avg_score)
+        }
+      }
+      
+      return 'N/A'
+    },
+    getWinLossDraw(p1, p2) {
+      if (!p1 || !p2) return 'N/A'
+      
+      // 检查strategy是否存在
+      if (!p1.strategy || !p2.strategy) {
+        console.error('策略不存在:', p1, p2)
+        return 'N/A'
+      }
+      
+      // 使用嵌套对象格式的matchups_matrix
+      if (this.tournament.matchups_matrix) {
+        const p1Name = p1.strategy.name
+        const p2Name = p2.strategy.name
+        
+        // 检查matchups_matrix是否有对应的数据
+        if (this.tournament.matchups_matrix[p1Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] 
+            && this.tournament.matchups_matrix[p1Name][p2Name] !== 'N/A') {
+          const matchData = this.tournament.matchups_matrix[p1Name][p2Name]
+          return `${matchData.wins}胜/${matchData.draws}平/${matchData.losses}负`
+        }
+      }
+      
+      return 'N/A'
     }
   },
   created() {
@@ -341,5 +467,27 @@ export default {
   top: 0;
   z-index: 1;
   background-color: #fff;
+}
+
+.self-match {
+  background-color: #f8f9fa;
+  text-align: center;
+}
+
+.na-cell {
+  background-color: #f5f5f5;
+  color: #999;
+}
+
+.win-cell {
+  background-color: #d1e7dd;  /* 绿色，表示胜利 */
+}
+
+.loss-cell {
+  background-color: #f8d7da;  /* 红色，表示失败 */
+}
+
+.draw-cell {
+  background-color: #fff3cd;  /* 黄色，表示平局 */
 }
 </style> 
