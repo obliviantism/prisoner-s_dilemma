@@ -8,7 +8,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('dilemma_game', '0002_add_win_loss_fields'),
         ('dilemma_game', '0004_tournamentparticipant_draws_and_more'),
-        ('dilemma_game', 'add_win_loss_fields'),
     ]
 
     operations = [

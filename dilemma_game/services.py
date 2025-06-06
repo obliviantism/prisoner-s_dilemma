@@ -53,8 +53,11 @@ class GameService:
             
             # 首先尝试查找预设策略
             try:
-                # 尝试使用策略模块的execute_strategy函数
-                return exec_strategy(strategy_id, opponent_history)
+                if strategy_id:
+                    # 尝试使用策略模块的execute_strategy函数
+                    from .strategies import execute_strategy as preset_execute
+                    result = preset_execute(strategy_id, opponent_history)
+                    return result
             except Exception as e:
                 logger.debug(f"未找到预设策略 {strategy_id}，尝试执行自定义代码: {e}")
                 # 继续执行自定义策略代码
@@ -100,7 +103,8 @@ def get_my_last_move(history):
                         logger.warning(f"策略 {strategy.name} 返回了无效结果: {result}，返回随机选择")
                         return random.choice(['C', 'D'])  # 返回随机选择
                 else:
-                    logger.warning(f"策略 {strategy.name} 中没有找到可调用的make_move函数")
+                    logger.warning(f"策略 {strategy.name} 中没有找到可调用的make_move函数，返回随机选择")
+                    return random.choice(['C', 'D'])  # 返回随机选择
             except Exception as e:
                 logger.error(f"执行策略 {strategy.name} 的make_move函数时出错: {e}")
             

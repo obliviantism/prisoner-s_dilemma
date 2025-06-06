@@ -124,27 +124,37 @@ def make_move(opponent_history):
     if not opponent_history:  # 第一轮
         return 'C'  # 首轮选择合作
     
-    # 获取自己上一轮的选择
-    my_last_move = get_my_last_move(opponent_history)
-    
-    # 如果双方选择相同，选择合作；否则选择背叛
-    if my_last_move == opponent_history[-1]:
-        return 'C'
-    return 'D'
-
-def get_my_last_move(opponent_history):
-    """
-    根据对手历史推断自己上一轮的选择
-    """
+    # 简化版Pavlov策略实现
+    # 第一轮默认合作，之后根据上一轮的结果决定
     if len(opponent_history) == 1:
-        return 'C'  # 假设第一轮我们选择了合作
+        # 第二轮，根据对手第一轮是否合作决定
+        return 'C' if opponent_history[0] == 'C' else 'D'
     
-    # 递归确定上一轮的选择
-    prev_my_move = get_my_last_move(opponent_history[:-1])
+    # 从第三轮开始，实现真正的Pavlov逻辑
+    # 假设我上一轮的选择与当前轮的选择相关
+    # 如果上一轮我和对手选择相同，这一轮选择合作；否则选择背叛
     
-    if prev_my_move == opponent_history[-2]:
-        return 'C'
-    return 'D'
+    # 获取对手上上轮和上轮的选择
+    prev_opponent_move = opponent_history[-1]  # 对手上一轮
+    prev2_opponent_move = opponent_history[-2]  # 对手上上轮
+    
+    # 根据简化的Pavlov规则推断我上一轮的选择
+    # 这是一个简化版，不是完全准确的Pavlov实现
+    if len(opponent_history) == 2:
+        my_prev_move = 'C' if opponent_history[0] == 'C' else 'D'
+    else:
+        # 如果上上轮我和对手选择相同，那么上一轮我应该选择合作
+        # 否则上一轮我应该选择背叛
+        if prev2_opponent_move == 'C':
+            my_prev_move = 'C'  # 假设我上上轮选择合作
+        else:
+            my_prev_move = 'D'  # 假设我上上轮选择背叛
+    
+    # 应用Pavlov规则
+    if my_prev_move == prev_opponent_move:
+        return 'C'  # 如果上一轮双方选择相同，选择合作
+    else:
+        return 'D'  # 如果上一轮双方选择不同，选择背叛
 '''
     },
     {
