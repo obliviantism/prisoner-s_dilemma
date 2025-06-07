@@ -531,8 +531,8 @@ class TournamentViewSet(viewsets.ModelViewSet):
         """删除锦标赛及所有相关数据"""
         tournament = self.get_object()
         
-        # 验证权限 - 只有创建者可以删除
-        if tournament.created_by != request.user:
+        # 验证权限 - 创建者或管理员可以删除
+        if tournament.created_by != request.user and not (request.user.is_staff or request.user.is_superuser):
             return Response(
                 {'error': 'You do not have permission to delete this tournament'},
                 status=status.HTTP_403_FORBIDDEN

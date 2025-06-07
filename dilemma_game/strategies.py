@@ -173,6 +173,28 @@ def make_move(opponent_history):
         return 'D'
     return 'C'
 '''
+    },
+    {
+        'id': 'two_memory',
+        'name': '两步记忆 (Two-Memory)',
+        'description': '根据对手最近两次的选择来决定自己的策略，如果最近两次都是合作则选择合作，否则选择背叛。',
+        'code': '''def make_move(opponent_history):
+    """
+    两步记忆策略
+    
+    :param opponent_history: 对手历史选择的列表
+    :return: 'C' 表示合作，'D' 表示背叛
+    """
+    # 第一轮和第二轮选择合作
+    if len(opponent_history) < 2:
+        return 'C'
+    
+    # 如果对手最近两次选择都是合作，则合作
+    if opponent_history[-1] == 'C' and opponent_history[-2] == 'C':
+        return 'C'
+    # 否则背叛
+    return 'D'
+'''
     }
 ]
 
