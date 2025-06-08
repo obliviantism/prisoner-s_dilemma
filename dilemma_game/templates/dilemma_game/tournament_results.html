@@ -1,7 +1,7 @@
 {% extends 'dilemma_game/base.html' %}
 {% load custom_filters %}
 
-{% block title %}锦标赛结果{% endblock %}
+{% block title %}锦标赛结果 - {{ tournament.name }}{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -9,6 +9,16 @@
 
 {% block content %}
 <div class="container mt-4">
+    {% if messages %}
+    <div class="messages mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="card mb-4">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h2 class="mb-0">{{ tournament.name }} - 锦标赛结果</h2>
@@ -20,7 +30,24 @@
                 </a>
                 {% endif %}
                 <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-light">
-                    <i class="bi bi-arrow-left"></i> 返回详情
+                    <i class="bi bi-arrow-left"></i> 返回锦标赛详情
+                </a>
+
+                <!-- 添加Q-learning分析链接 -->
+                
+    <!-- Q-Learning分析按钮 -->
+    {% for participant in participants %}
+    {% if participant.strategy.preset_id == 'q_learning' or 'Q学习' in participant.strategy.name or 'Q-Learning' in participant.strategy.name %}
+    <a href="{% url 'q_learning_results' tournament.id %}" class="btn btn-info">
+        <i class="bi bi-graph-up"></i> Q-Learning分析
+    </a>
+    {% break %}
+    {% endif %}
+    {% endfor %}
+    
+
+                <a href="{% url 'export_tournament_results' tournament.id %}" class="btn btn-success">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> 导出结果
                 </a>
             </div>
         </div>
@@ -204,9 +231,48 @@
                 });
                     });
             </script>
+
+            <!-- 调试区域：显示参赛者的策略ID -->
+            <div class="row mt-5">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">调试信息 - 参赛者策略信息</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>策略名称</th>
+                                        <th>Preset ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for participant in participants %}
+                                    <tr>
+                                        <td>{{ participant.strategy.name }}</td>
+                                        <td>{{ participant.strategy.preset_id|default:"无" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+
+                            <div class="alert alert-info">
+                                <p><strong>说明：</strong> 如果要显示Q-Learning分析按钮，需要有一个参赛者的策略preset_id为"q_learning"</p>
+                                <p>缺少Q-Learning分析按钮？请按以下步骤解决：</p>
+                                <ol>
+                                    <li>确认系统中已添加Q-learning策略（运行 python add_ql_strategy.py）</li>
+                                    <li>创建新的锦标赛并添加Q-learning策略作为参赛者</li>
+                                    <li>运行并完成锦标赛</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% else %}
             <div class="alert alert-warning">
-                <p>无可用结果数据。</p>
+                <p>该锦标赛尚无完整结果。请确保锦标赛已完成并且有足够的参与者。</p>
             </div>
             {% endif %}
         </div>

@@ -1,0 +1,141 @@
+{% extends 'dilemma_game/base.html' %}
+
+{% block title %}锦标赛 #{{ tournament.id }} Q-Learning策略学习结果{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if messages %}
+    <div class="messages mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">锦标赛 #{{ tournament.id }} Q-Learning策略学习结果</h2>
+            <div>
+                <a href="{% url 'tournament_results' tournament.id %}" class="btn btn-light">
+                    <i class="bi bi-arrow-left"></i> 返回锦标赛结果
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="alert alert-info">
+                        <strong>注意：</strong> 本页面展示的是当前锦标赛（ID: {{ tournament.id }}）中Q-learning策略的专属学习结果。
+                        Q-learning策略在每个锦标赛中都会从零开始学习，并针对当前锦标赛的对手策略进行适应性调整。
+                    </div>
+
+                    <h4>锦标赛信息</h4>
+                    <p><strong>名称：</strong> {{ tournament.name }}</p>
+                    <p><strong>描述：</strong> {{ tournament.description }}</p>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>每场比赛回合数：</strong>
+                                {% if tournament.use_probability_model %}
+                                以{{ tournament.continue_probability }}的概率进行下一轮
+                                {% elif tournament.use_random_rounds %}
+                                随机 ({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
+                                {% else %}
+                                固定 ({{ tournament.rounds_per_match }})
+                                {% endif %}
+                            </p>
+                            <p><strong>重复次数：</strong> {{ tournament.repetitions }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Q-learning排名：</strong> 第{{ participant.rank }}名</p>
+                            <p><strong>总分：</strong> {{ participant.total_score }}</p>
+                            <p><strong>平均每场得分：</strong> {{ participant.average_score }}</p>
+                            <p><strong>胜/平/负：</strong> {{ participant.wins }}/{{ participant.draws }}/{{
+                                participant.losses }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 学习曲线图 -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>当前锦标赛学习曲线</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <img src="{% url 'q_learning_curve' tournament.id %}" class="img-fluid"
+                                alt="Q-learning策略学习曲线">
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-muted">展示了Q-learning策略在当前锦标赛中随着对局次数增加的表现变化，以及5场比赛的移动平均线</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Q值热力图 -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>当前锦标赛Q值热力图</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <img src="{% url 'q_value_heatmap' tournament.id %}" class="img-fluid"
+                                alt="Q-learning Q值热力图">
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-muted">展示了当前锦标赛中不同状态下合作和背叛动作的Q值，正值（绿色）表示该动作有正面收益，负值（红色）表示负面收益</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 与各对手的对战结果 -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>当前锦标赛与各对手对战结果</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <img src="{% url 'q_learning_vs_opponents' tournament.id %}" class="img-fluid"
+                                alt="Q-learning与各对手对战结果">
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-muted">左图展示了Q-learning与各个策略的平均得分对比，右图展示了与各个对手的胜/平/负比例</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Q-learning策略最终学到的行为 -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>当前锦标赛Q-learning策略总结</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>在本次锦标赛中，Q-learning通过试错学习和价值函数逼近，学习了在不同对手历史行为模式下的最佳响应策略。通过Q表可以观察到：</p>
+
+                            <ul>
+                                <li>当对手始终合作（CCC）时，Q-learning倾向于选择背叛（D）以最大化自身收益</li>
+                                <li>当对手频繁背叛（DDD）时，Q-learning也倾向于选择背叛（D）作为防御</li>
+                                <li>当对手表现出"针锋相对"（交替的C和D）模式时，Q-learning可能学会了持续合作</li>
+                                <li>随着比赛的进行，Q-learning不断调整其策略以适应对手，显示出良好的适应性</li>
+                            </ul>
+
+                            <p>通过上面的热力图，我们可以直观地看到Q-learning在各种状态下对合作和背叛两种行为的评估。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

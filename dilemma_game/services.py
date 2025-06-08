@@ -27,94 +27,49 @@ class GameService:
         return score_matrix[(player1_choice, player2_choice)]
 
     @staticmethod
-    def execute_strategy(strategy: Strategy, opponent_history: List[str]) -> str:
-        """Execute a strategy based on opponent's history."""
+    def execute_strategy(strategy, opponent_history, tournament_id=None):
+        """执行策略，获取下一步动作
+        
+        参数:
+            strategy: Strategy对象
+            opponent_history: 对手的历史选择列表
+            tournament_id: 当前锦标赛ID，用于Q-learning策略
+            
+        返回:
+            'C' 或 'D'
+        """
         try:
-            logger.debug(f"执行策略 {strategy.name} 对抗历史: {opponent_history}")
-            
-            # 检查策略代码是否为空
-            if not strategy.code or not strategy.code.strip():
-                logger.warning(f"策略 {strategy.name} 没有代码，返回随机选择")
-                return random.choice(['C', 'D'])  # 改为随机选择
-            
-            # 准备执行环境
-            safe_globals = {
-                'random': random,
-            }
-            local_vars = {}
-            
-            # 尝试使用预设策略的简化ID（通常是英文名称的小写形式）
-            strategy_id = None
-            if strategy.is_preset and strategy.preset_id:
-                strategy_id = strategy.preset_id
+            # 检查是否为预设策略
+            if strategy.is_preset:
+                # 检查是否为Q-learning策略
+                if strategy.preset_id == 'q_learning':
+                    # Q-learning策略需要传递tournament_id参数
+                    choice = exec_strategy(strategy.preset_id, opponent_history, tournament_id=tournament_id)
+                    logger.info(f"Q-learning策略 (tournament_id={tournament_id}) 选择了: {choice}")
+                    return choice
+                choice = exec_strategy(strategy.preset_id, opponent_history)
+                logger.info(f"预设策略 {strategy.preset_id} 选择了: {choice}")
+                return choice
             else:
-                # 尝试从名称生成ID
-                strategy_id = strategy.name.lower().replace(' ', '_')
-            
-            # 首先尝试查找预设策略
-            try:
-                if strategy_id:
-                    # 尝试使用策略模块的execute_strategy函数
-                    from .strategies import execute_strategy as preset_execute
-                    result = preset_execute(strategy_id, opponent_history)
-                    return result
-            except Exception as e:
-                logger.debug(f"未找到预设策略 {strategy_id}，尝试执行自定义代码: {e}")
-                # 继续执行自定义策略代码
-                pass
-            
-            # 执行自定义策略代码
-            try:
-                # 为Pavlov策略提供必要的辅助函数
-                if 'get_my_last_move' in strategy.code:
-                    setup_code = """
-def get_my_last_move(history):
-    # 此函数跟踪自己之前的选择
-    my_moves = []
-    
-    # 计算自己之前的选择
-    for i in range(len(history)):
-        if i == 0:
-            my_moves.append("C")  # 默认第一轮合作
-        else:
-            prev_opponent = history[i-1]
-            prev_mine = my_moves[i-1]
-            
-            # 使用Pavlov策略规则 (Win-Stay, Lose-Shift)
-            if (prev_mine == "D" and prev_opponent == "C") or (prev_mine == "C" and prev_opponent == "C"):
-                my_moves.append(prev_mine)  # 保持选择
-            else:
-                my_moves.append("D" if prev_mine == "C" else "C")  # 改变选择
-    
-    return my_moves[-1] if my_moves else "C"
-"""
-                    exec(setup_code, safe_globals, local_vars)
-                
-                # 执行策略代码
-                exec(strategy.code, safe_globals, local_vars)
-                
-                # 然后确保make_move函数存在
-                if 'make_move' in local_vars and callable(local_vars['make_move']):
-                    # 调用make_move函数
-                    result = local_vars['make_move'](opponent_history)
-                    if result in ['C', 'D']:
-                        return result
-                    else:
-                        logger.warning(f"策略 {strategy.name} 返回了无效结果: {result}，返回随机选择")
-                        return random.choice(['C', 'D'])  # 返回随机选择
-                else:
-                    logger.warning(f"策略 {strategy.name} 中没有找到可调用的make_move函数，返回随机选择")
-                    return random.choice(['C', 'D'])  # 返回随机选择
-            except Exception as e:
-                logger.error(f"执行策略 {strategy.name} 的make_move函数时出错: {e}")
-            
-            # 执行失败时返回随机选择，而不是总是合作
-            logger.warning(f"策略 {strategy.name} 执行失败，返回随机选择")
-            return random.choice(['C', 'D'])
+                # 用户自定义策略
+                choice = exec_strategy(strategy.id, opponent_history)
+                logger.info(f"自定义策略 {strategy.id} 选择了: {choice}")
+                return choice
         except Exception as e:
-            logger.error(f"策略 {strategy.name} 执行过程中发生错误: {e}")
-            # 出错时返回随机选择
-            return random.choice(['C', 'D'])
+            logger.error(f"执行策略 {strategy.name} 时出错: {e}")
+            
+            # 如果策略执行失败，根据策略类型提供默认行为，而不是总是返回'C'
+            if strategy.is_preset:
+                if strategy.preset_id == 'always_defect':
+                    return 'D'
+                elif strategy.preset_id == 'random':
+                    import random
+                    return random.choice(['C', 'D'])
+                elif strategy.preset_id == 'tit_for_tat':
+                    return 'C' if not opponent_history else opponent_history[-1]
+            
+            # 如果无法确定默认行为，返回合作
+            return 'C'
 
     @staticmethod
     def play_round(game: Game) -> Round:
@@ -374,8 +329,8 @@ class TournamentService:
             # 进行比赛，每轮后以概率w决定是否继续
             while continue_game and round_num <= max_rounds:  # 添加最大回合数限制
                 # 执行策略获取选择
-                p1_choice = GameService.execute_strategy(strategy1, p2_history)
-                p2_choice = GameService.execute_strategy(strategy2, p1_history)
+                p1_choice = GameService.execute_strategy(strategy1, p2_history, tournament_id=tournament.id)
+                p2_choice = GameService.execute_strategy(strategy2, p1_history, tournament_id=tournament.id)
                 
                 # 计算分数
                 round_p1_score, round_p2_score = calculate_scores(p1_choice, p2_choice)
@@ -405,8 +360,8 @@ class TournamentService:
             # 进行指定回合数的对局
             for round_num in range(1, rounds_to_play + 1):
                 # 执行策略获取选择
-                p1_choice = GameService.execute_strategy(strategy1, p2_history)
-                p2_choice = GameService.execute_strategy(strategy2, p1_history)
+                p1_choice = GameService.execute_strategy(strategy1, p2_history, tournament_id=tournament.id)
+                p2_choice = GameService.execute_strategy(strategy2, p1_history, tournament_id=tournament.id)
                 
                 # 计算分数
                 round_p1_score, round_p2_score = calculate_scores(p1_choice, p2_choice)

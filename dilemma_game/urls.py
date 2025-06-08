@@ -8,7 +8,8 @@ from .views import (
     current_user, delete_game, TournamentViewSet, tournament_list, tournament_create, tournament_detail,
     tournament_add_participant, tournament_start, tournament_run, tournament_results, api_preset_strategies,
     tournament_detail_api, recalculate_tournament_stats, api_deleted_preset_strategies, fix_tournaments,
-    emergency_fix_tournaments, reset_all_tournaments
+    emergency_fix_tournaments, reset_all_tournaments, visualize_q_learning_results, q_learning_curve, q_value_heatmap,
+    q_learning_vs_opponents, export_tournament_results, debug_q_learning_tournament
 )
 
 # Register API URLs
@@ -48,10 +49,14 @@ urlpatterns = [
     path('tournaments/<int:pk>/start/', tournament_start, name='tournament_start'),
     path('tournaments/<int:pk>/run/', tournament_run, name='tournament_run'),
     path('tournaments/<int:tournament_id>/results/', tournament_results, name='tournament_results'),
-    path('tournaments/<int:tournament_id>/recalculate/', recalculate_tournament_stats, name='recalculate_tournament_stats'),
+    path('tournaments/<int:tournament_id>/export/', export_tournament_results, name='export_tournament_results'),
     
-    # 修复锦标赛URLs
-    path('tournaments/fix/', fix_tournaments, name='fix_tournaments'),
-    path('tournaments/emergency-fix/', emergency_fix_tournaments, name='emergency_fix_tournaments'),
-    path('tournaments/reset-all/', reset_all_tournaments, name='reset_all_tournaments'),
+    # Q-learning结果可视化
+    path('tournaments/<int:tournament_id>/q_learning/', visualize_q_learning_results, name='q_learning_results'),
+    path('tournaments/<int:tournament_id>/q_learning/curve/', q_learning_curve, name='q_learning_curve'),
+    path('tournaments/<int:tournament_id>/q_learning/heatmap/', q_value_heatmap, name='q_value_heatmap'),
+    path('tournaments/<int:tournament_id>/q_learning/vs_opponents/', q_learning_vs_opponents, name='q_learning_vs_opponents'),
+    
+    # 调试URL
+    path('tournaments/<int:tournament_id>/debug/', debug_q_learning_tournament, name='debug_q_learning_tournament'),
 ]
