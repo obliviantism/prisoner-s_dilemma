@@ -37,7 +37,19 @@
               <p>
                 <span class="badge bg-success">已完成</span>
                 <span class="ms-2">参赛者: {{ tournament.participants ? tournament.participants.length : 0 }}</span>
-                <span class="ms-2">每场比赛回合: {{ tournament.rounds_per_match }}</span>
+                <span class="ms-2">
+                  每场比赛回合: 
+                  <span v-if="tournament.use_probability_model" title="概率模型">
+                    {{ (tournament.continue_probability * 100).toFixed(4) }}% 概率
+                    <small v-if="tournament.continue_probability === 1" class="d-inline">
+                      (最多 {{ tournament.rounds_per_match }} 回合)
+                    </small>
+                  </span>
+                  <span v-else-if="tournament.use_random_rounds" title="随机回合数">
+                    {{ tournament.min_rounds }}-{{ tournament.max_rounds }} (随机)
+                  </span>
+                  <span v-else>{{ tournament.rounds_per_match }}</span>
+                </span>
                 <span class="ms-2">重复次数: {{ tournament.repetitions }}</span>
               </p>
               <p>
@@ -169,7 +181,21 @@
                       <div class="col-md-6">
                         <h5>比赛信息</h5>
                         <p>
-                          <strong>回合数:</strong> {{ match.rounds ? match.rounds.length : 0 }}<br>
+                          <strong>回合设置:</strong> 
+                          <span v-if="tournament.use_probability_model" title="概率模型">
+                            {{ (tournament.continue_probability * 100).toFixed(4) }}% 概率继续
+                            <span v-if="tournament.continue_probability === 1" class="d-inline">
+                              (最多 {{ tournament.rounds_per_match }} 回合)
+                            </span>
+                            (当前比赛进行了 {{ match.rounds ? match.rounds.length : 0 }} 回合)
+                          </span>
+                          <span v-else-if="tournament.use_random_rounds" title="随机回合数">
+                            随机 {{ tournament.min_rounds }}-{{ tournament.max_rounds }} 回合
+                            (当前比赛进行了 {{ match.rounds ? match.rounds.length : 0 }} 回合)
+                          </span>
+                          <span v-else>
+                            固定 {{ tournament.rounds_per_match }} 回合
+                          </span><br>
                           <strong>策略1:</strong> {{ getStrategyName(match.strategy1_id) }}<br>
                           <strong>策略2:</strong> {{ getStrategyName(match.strategy2_id) }}<br>
                           <strong>得分:</strong> {{ formatScore(match.score1) }} - {{ formatScore(match.score2) }}

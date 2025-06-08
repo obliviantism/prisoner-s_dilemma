@@ -119,6 +119,7 @@ class TournamentSerializer(serializers.ModelSerializer):
         model = Tournament
         fields = ['id', 'name', 'description', 'created_by', 'created_by_username',
                   'rounds_per_match', 'use_random_rounds', 'min_rounds', 'max_rounds', 
+                  'use_probability_model', 'continue_probability',
                   'repetitions', 'status', 'created_at',
                   'completed_at', 'payoff_matrix', 'participants', 'matches']
         read_only_fields = ['created_by', 'status', 'created_at', 'completed_at']

@@ -37,19 +37,48 @@
           <div class="row">
             <div class="col-md-6 mb-3">
               <label for="rounds_type" class="form-label">回合数设置</label>
-              <div class="form-check form-switch mb-2">
-                <input 
-                  class="form-check-input" 
-                  type="checkbox" 
-                  id="use_random_rounds" 
-                  v-model="formData.use_random_rounds"
-                >
-                <label class="form-check-label" for="use_random_rounds">
-                  {{ formData.use_random_rounds ? '使用随机回合数' : '使用固定回合数' }}
-                </label>
+              <div class="form-group mb-3">
+                <div class="form-check mb-2">
+                  <input 
+                    class="form-check-input" 
+                    type="radio" 
+                    id="fixed_rounds" 
+                    value="fixed"
+                    v-model="roundsType"
+                  >
+                  <label class="form-check-label" for="fixed_rounds">
+                    使用固定回合数
+                  </label>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input 
+                    class="form-check-input" 
+                    type="radio" 
+                    id="random_rounds" 
+                    value="random"
+                    v-model="roundsType"
+                  >
+                  <label class="form-check-label" for="random_rounds">
+                    使用随机回合数
+                  </label>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input 
+                    class="form-check-input" 
+                    type="radio" 
+                    id="probability_model" 
+                    value="probability"
+                    v-model="roundsType"
+                  >
+                  <label class="form-check-label" for="probability_model">
+                    以w的概率进行下一轮
+                  </label>
+                </div>
               </div>
               
-              <div v-if="!formData.use_random_rounds">
+              <div v-if="roundsType === 'fixed'">
                 <label for="rounds_per_match" class="form-label">每场比赛回合数</label>
                 <input 
                   type="number" 
@@ -63,7 +92,7 @@
                 <div class="invalid-feedback" v-if="errors.rounds_per_match">{{ errors.rounds_per_match }}</div>
               </div>
               
-              <div v-else class="mt-2">
+              <div v-else-if="roundsType === 'random'" class="mt-2">
                 <div class="row">
                   <div class="col-md-6">
                     <label for="min_rounds" class="form-label">最小回合数</label>
@@ -91,6 +120,50 @@
                   </div>
                 </div>
                 <small class="text-muted d-block mt-1">系统将在指定范围内随机选择每场比赛的回合数</small>
+              </div>
+              
+              <div v-else-if="roundsType === 'probability'" class="mt-2">
+                <label for="continue_probability" class="form-label">继续概率 (w):</label>
+                <div class="row mb-2">
+                  <div class="col-md-8">
+                    <input 
+                      type="range" 
+                      class="form-range" 
+                      id="continue_probability" 
+                      v-model.number="formData.continue_probability" 
+                      min="0" 
+                      max="1" 
+                      step="0.0001"
+                      :class="{ 'is-invalid': errors.continue_probability }"
+                    >
+                  </div>
+                  <div class="col-md-4">
+                    <input 
+                      type="number" 
+                      class="form-control" 
+                      v-model.number="formData.continue_probability" 
+                      min="0" 
+                      max="1" 
+                      step="0.0001"
+                      :class="{ 'is-invalid': errors.continue_probability }"
+                    >
+                  </div>
+                </div>
+                <div class="invalid-feedback" v-if="errors.continue_probability">{{ errors.continue_probability }}</div>
+                <small class="text-muted d-block mt-1">每轮对局后，以 {{ (formData.continue_probability * 100).toFixed(4) }}% 的概率继续下一轮</small>
+                <small class="text-muted d-block mt-1">
+                  平均回合数约为: 
+                  <span v-if="formData.continue_probability < 1">
+                    {{ Math.round(1 / (1 - formData.continue_probability)) }} 轮
+                  </span>
+                  <span v-else>
+                    最多 {{ formData.rounds_per_match }} 轮
+                  </span>
+                </small>
+                <small v-if="formData.continue_probability === 1" class="text-warning d-block mt-1">
+                  <i class="bi bi-exclamation-triangle"></i> 
+                  当w=1时，为避免无限循环，系统会限制最多进行 {{ formData.rounds_per_match }} 回合
+                </small>
               </div>
             </div>
             
@@ -217,8 +290,10 @@ export default {
         description: '',
         rounds_per_match: 200,
         use_random_rounds: false,
+        use_probability_model: false,
         min_rounds: 100,
         max_rounds: 300,
+        continue_probability: 0.95,
         repetitions: 5,
       },
       payoffMatrix: {
@@ -228,7 +303,33 @@ export default {
         DD: [1, 1]
       },
       errors: {},
-      submitting: false
+      submitting: false,
+      roundsType: 'fixed'  // 'fixed', 'random', 或 'probability'
+    }
+  },
+  created() {
+    // 根据初始数据设置正确的回合类型
+    if (this.formData.use_probability_model) {
+      this.roundsType = 'probability';
+    } else if (this.formData.use_random_rounds) {
+      this.roundsType = 'random';
+    } else {
+      this.roundsType = 'fixed';
+    }
+  },
+  watch: {
+    roundsType(newType) {
+      // 根据选择更新相关标志
+      if (newType === 'fixed') {
+        this.formData.use_random_rounds = false;
+        this.formData.use_probability_model = false;
+      } else if (newType === 'random') {
+        this.formData.use_random_rounds = true;
+        this.formData.use_probability_model = false;
+      } else if (newType === 'probability') {
+        this.formData.use_random_rounds = false;
+        this.formData.use_probability_model = true;
+      }
     }
   },
   methods: {
@@ -239,12 +340,12 @@ export default {
         this.errors.name = '请输入锦标赛名称'
       }
       
-      if (!this.formData.use_random_rounds) {
+      if (this.roundsType === 'fixed') {
         // 验证固定回合数
         if (this.formData.rounds_per_match < 1) {
           this.errors.rounds_per_match = '每场比赛回合数必须大于0'
         }
-      } else {
+      } else if (this.roundsType === 'random') {
         // 验证随机回合数范围
         if (this.formData.min_rounds < 1) {
           this.errors.min_rounds = '最小回合数必须大于0'
@@ -252,6 +353,11 @@ export default {
         
         if (this.formData.max_rounds <= this.formData.min_rounds) {
           this.errors.max_rounds = '最大回合数必须大于最小回合数'
+        }
+      } else if (this.roundsType === 'probability') {
+        // 验证概率值
+        if (this.formData.continue_probability < 0 || this.formData.continue_probability > 1) {
+          this.errors.continue_probability = '概率必须在 0-1 之间（包含两端）'
         }
       }
       

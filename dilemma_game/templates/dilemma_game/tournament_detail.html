@@ -53,7 +53,15 @@
                                 <span class="badge bg-success">已完成</span>
                                 {% endif %}
                             </p>
-                            <p><strong>每场比赛回合数：</strong> {{ tournament.rounds_per_match }}</p>
+                            <p><strong>每场比赛回合数：</strong>
+                                {% if tournament.use_probability_model %}
+                                以{{ tournament.continue_probability }}的概率进行下一轮
+                                {% elif tournament.use_random_rounds %}
+                                随机 ({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
+                                {% else %}
+                                固定 ({{ tournament.rounds_per_match }})
+                                {% endif %}
+                            </p>
                             <p><strong>重复次数：</strong> {{ tournament.repetitions }}</p>
                         </div>
                         <div class="col-md-6">

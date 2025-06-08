@@ -73,6 +73,10 @@ class Tournament(models.Model):
     use_random_rounds = models.BooleanField(default=False)
     min_rounds = models.IntegerField(default=100)  # 最小回合数
     max_rounds = models.IntegerField(default=300)  # 最大回合数
+    # 新增字段，用于控制是否使用概率模型决定是否继续下一轮
+    use_probability_model = models.BooleanField(default=False)
+    # 新增字段，下一轮的继续概率 (0-1之间)
+    continue_probability = models.FloatField(default=0.95)
     repetitions = models.IntegerField(default=5)  # 每场锦标赛重复次数
     status = models.CharField(max_length=20, choices=TOURNAMENT_STATUS, default='CREATED')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -126,6 +130,7 @@ class TournamentMatch(models.Model):
     status = models.CharField(max_length=20, choices=MATCH_STATUS, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    actual_rounds = models.IntegerField(default=0)  # 实际进行的回合数
     
     class Meta:
         unique_together = ['tournament', 'participant1', 'participant2', 'repetition']

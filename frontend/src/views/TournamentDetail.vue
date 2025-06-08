@@ -69,7 +69,16 @@
                     </span>
                   </p>
                   <p><strong>每场比赛回合数：</strong> 
-                    <span v-if="tournament.use_random_rounds">
+                    <span v-if="tournament.use_probability_model" title="概率模型">
+                      {{ (tournament.continue_probability * 100).toFixed(4) }}% 概率进行下一轮
+                      <span v-if="tournament.continue_probability < 1">
+                        （平均 {{ (1 / (1 - tournament.continue_probability)).toFixed(2) }} 回合）
+                      </span>
+                      <span v-else>
+                        （最多 {{ tournament.rounds_per_match }} 回合）
+                      </span>
+                    </span>
+                    <span v-else-if="tournament.use_random_rounds">
                       随机 ({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
                     </span>
                     <span v-else>

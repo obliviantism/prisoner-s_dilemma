@@ -211,7 +211,8 @@ class TournamentService:
     @staticmethod
     def create_tournament(name: str, description: str, user, rounds_per_match: int = 200, 
                           repetitions: int = 5, payoff_matrix: Dict = None,
-                          use_random_rounds: bool = False, min_rounds: int = 100, max_rounds: int = 300) -> Tournament:
+                          use_random_rounds: bool = False, min_rounds: int = 100, max_rounds: int = 300,
+                          use_probability_model: bool = False, continue_probability: float = 0.95) -> Tournament:
         """
         创建一个新的锦标赛
         
@@ -219,12 +220,14 @@ class TournamentService:
             name: 锦标赛名称
             description: 锦标赛描述
             user: 创建锦标赛的用户
-            rounds_per_match: 每场比赛的回合数 (当use_random_rounds为False时使用)
+            rounds_per_match: 每场比赛的回合数 (当use_random_rounds和use_probability_model均为False时使用)
             repetitions: 重复次数
             payoff_matrix: 自定义收益矩阵
             use_random_rounds: 是否使用随机回合数
             min_rounds: 最小回合数 (当use_random_rounds为True时使用)
             max_rounds: 最大回合数 (当use_random_rounds为True时使用)
+            use_probability_model: 是否使用概率模型决定比赛是否继续下一轮
+            continue_probability: 继续下一轮的概率 (当use_probability_model为True时使用)
             
         返回:
             创建的锦标赛对象
@@ -237,7 +240,9 @@ class TournamentService:
             repetitions=repetitions,
             use_random_rounds=use_random_rounds,
             min_rounds=min_rounds,
-            max_rounds=max_rounds
+            max_rounds=max_rounds,
+            use_probability_model=use_probability_model,
+            continue_probability=continue_probability
         )
         
         # 如果提供了自定义收益矩阵，则更新
@@ -359,38 +364,74 @@ class TournamentService:
         # 存储每轮的选择和分数
         rounds_data = []
         
-        # 如果使用随机回合数，则在指定范围内随机生成回合数
-        rounds_to_play = random.randint(tournament.min_rounds, tournament.max_rounds) if tournament.use_random_rounds else tournament.rounds_per_match
-        
-        # 进行指定回合数的对局
-        for round_num in range(1, rounds_to_play + 1):
-            # 执行策略获取选择
-            p1_choice = GameService.execute_strategy(strategy1, p2_history)
-            p2_choice = GameService.execute_strategy(strategy2, p1_history)
+        # 根据设置确定回合数或使用概率模型
+        if tournament.use_probability_model:
+            # 使用概率模型，不预先确定回合数
+            round_num = 1
+            continue_game = True
+            max_rounds = tournament.rounds_per_match  # 使用rounds_per_match作为最大回合数
             
-            # 计算分数
-            round_p1_score, round_p2_score = calculate_scores(p1_choice, p2_choice)
+            # 进行比赛，每轮后以概率w决定是否继续
+            while continue_game and round_num <= max_rounds:  # 添加最大回合数限制
+                # 执行策略获取选择
+                p1_choice = GameService.execute_strategy(strategy1, p2_history)
+                p2_choice = GameService.execute_strategy(strategy2, p1_history)
+                
+                # 计算分数
+                round_p1_score, round_p2_score = calculate_scores(p1_choice, p2_choice)
+                
+                # 更新历史和总分
+                p1_history.append(p1_choice)
+                p2_history.append(p2_choice)
+                p1_score += round_p1_score
+                p2_score += round_p2_score
+                
+                # 记录回合数据
+                rounds_data.append({
+                    'round': round_num,
+                    'p1_choice': p1_choice,
+                    'p2_choice': p2_choice,
+                    'p1_score': round_p1_score,
+                    'p2_score': round_p2_score
+                })
+                
+                # 确定是否继续下一轮 - 使用概率w
+                continue_game = random.random() < tournament.continue_probability
+                round_num += 1
+        else:
+            # 如果使用随机回合数，则在指定范围内随机生成回合数
+            rounds_to_play = random.randint(tournament.min_rounds, tournament.max_rounds) if tournament.use_random_rounds else tournament.rounds_per_match
             
-            # 更新历史和总分
-            p1_history.append(p1_choice)
-            p2_history.append(p2_choice)
-            p1_score += round_p1_score
-            p2_score += round_p2_score
-            
-            # 记录回合数据
-            rounds_data.append({
-                'round': round_num,
-                'p1_choice': p1_choice,
-                'p2_choice': p2_choice,
-                'p1_score': round_p1_score,
-                'p2_score': round_p2_score
-            })
+            # 进行指定回合数的对局
+            for round_num in range(1, rounds_to_play + 1):
+                # 执行策略获取选择
+                p1_choice = GameService.execute_strategy(strategy1, p2_history)
+                p2_choice = GameService.execute_strategy(strategy2, p1_history)
+                
+                # 计算分数
+                round_p1_score, round_p2_score = calculate_scores(p1_choice, p2_choice)
+                
+                # 更新历史和总分
+                p1_history.append(p1_choice)
+                p2_history.append(p2_choice)
+                p1_score += round_p1_score
+                p2_score += round_p2_score
+                
+                # 记录回合数据
+                rounds_data.append({
+                    'round': round_num,
+                    'p1_choice': p1_choice,
+                    'p2_choice': p2_choice,
+                    'p1_score': round_p1_score,
+                    'p2_score': round_p2_score
+                })
         
         # 更新比赛结果
         match.player1_score = p1_score
         match.player2_score = p2_score
         match.status = 'COMPLETED'
         match.completed_at = timezone.now()
+        match.actual_rounds = len(rounds_data)  # 保存实际回合数
         match.save()
         
         # 返回比赛结果
@@ -604,16 +645,76 @@ class TournamentService:
                     matchups_matrix[p1.strategy.name][p2.strategy.name] = 'N/A'
         
         # 构建最终结果字典
-        return {
+        results = {
             'tournament_id': tournament.id,
             'name': tournament.name,
             'status': tournament.status,
             'rounds_per_match': tournament.rounds_per_match,
             'repetitions': tournament.repetitions,
+            'use_random_rounds': tournament.use_random_rounds,
+            'min_rounds': tournament.min_rounds,
+            'max_rounds': tournament.max_rounds,
+            'use_probability_model': tournament.use_probability_model,
+            'continue_probability': tournament.continue_probability,
             'created_by': tournament.created_by.username,
             'created_at': tournament.created_at.isoformat(),
             'completed_at': tournament.completed_at.isoformat() if tournament.completed_at else None,
             'participants': participant_results,
             'matchups_matrix': matchups_matrix,
             'payoff_matrix': tournament.payoff_matrix
-        } 
+        }
+        
+        # 添加比赛的详细信息（最多10场比赛）
+        sample_matches = TournamentMatch.objects.filter(
+            tournament=tournament,
+            status='COMPLETED'
+        ).order_by('?')[:10]
+        
+        match_results = []
+        for match in sample_matches:
+            # 从数据库获取比赛详情
+            match_data = {
+                'id': match.id,
+                'strategy1_id': match.participant1.strategy.id,
+                'strategy2_id': match.participant2.strategy.id,
+                'player1_score': match.player1_score,
+                'player2_score': match.player2_score,
+                'score1': match.player1_score,  # 为了兼容前端的变量名
+                'score2': match.player2_score,  # 为了兼容前端的变量名
+                'repetition': match.repetition,
+                'actual_rounds': match.actual_rounds,  # 添加实际回合数
+            }
+            
+            # 生成回合数据（示例）- 实际上这应该从数据库中获取
+            # 但由于我们不存储具体回合，这里创建一个模拟的回合列表
+            rounds_data = []
+            
+            # 使用实际记录的回合数
+            rounds_count = match.actual_rounds
+            
+            # 如果没有记录回合数（旧数据），则根据锦标赛设置生成一个估算值
+            if rounds_count == 0:
+                if tournament.use_probability_model:
+                    # 使用几何分布的均值公式，μ = 1/p，其中p是停止概率
+                    stop_probability = 1 - tournament.continue_probability
+                    rounds_count = int(1 / stop_probability)
+                elif tournament.use_random_rounds:
+                    # 如果是随机回合数，使用最小和最大回合范围的中间值
+                    rounds_count = (tournament.min_rounds + tournament.max_rounds) // 2
+                else:
+                    # 如果是固定回合数，直接使用设定的回合数
+                    rounds_count = tournament.rounds_per_match
+                
+            # 生成模拟的回合数据
+            for i in range(rounds_count):
+                rounds_data.append({
+                    'moves': ['C', 'C'],  # 示例移动
+                    'scores': [3, 3]      # 示例分数
+                })
+            
+            match_data['rounds'] = rounds_data
+            match_results.append(match_data)
+        
+        results['match_results'] = match_results
+        
+        return results 

@@ -559,19 +559,32 @@ class TournamentViewSet(viewsets.ModelViewSet):
         name = request.data.get('name')
         description = request.data.get('description', '')
         
-        # 回合数设置 - 支持固定回合数或随机回合数范围
+        # 获取设置类型标志
         use_random_rounds = request.data.get('use_random_rounds', False)
+        use_probability_model = request.data.get('use_probability_model', False)
         
-        if use_random_rounds:
+        # 根据设置类型选择参数
+        if use_probability_model:
+            # 概率模型设置
+            continue_probability = float(request.data.get('continue_probability', 0.95))
+            # 设置默认值，但在概率模型下不会使用
+            rounds_per_match = 200
+            min_rounds = 100
+            max_rounds = 300
+        elif use_random_rounds:
+            # 随机回合数设置
             min_rounds = int(request.data.get('min_rounds', 100))
             max_rounds = int(request.data.get('max_rounds', 300))
-            # 设置一个默认值，但在随机模式下不会使用
+            # 设置默认值，但在随机模式下不会使用
             rounds_per_match = 200
+            continue_probability = 0.95
         else:
+            # 固定回合数设置
             rounds_per_match = int(request.data.get('rounds_per_match', 200))
             # 设置默认值，但在固定回合模式下不会使用
             min_rounds = 100
             max_rounds = 300
+            continue_probability = 0.95
             
         repetitions = int(request.data.get('repetitions', 5))
         
@@ -594,7 +607,9 @@ class TournamentViewSet(viewsets.ModelViewSet):
                 payoff_matrix=payoff_matrix,
                 use_random_rounds=use_random_rounds,
                 min_rounds=min_rounds,
-                max_rounds=max_rounds
+                max_rounds=max_rounds,
+                use_probability_model=use_probability_model,
+                continue_probability=continue_probability
             )
             
             return Response({
@@ -1054,6 +1069,8 @@ def tournament_detail_api(request, pk):
             'use_random_rounds': tournament.use_random_rounds,
             'min_rounds': tournament.min_rounds,
             'max_rounds': tournament.max_rounds,
+            'use_probability_model': tournament.use_probability_model,
+            'continue_probability': tournament.continue_probability,
             'repetitions': tournament.repetitions,
             'status': tournament.status,
             'created_at': tournament.created_at,

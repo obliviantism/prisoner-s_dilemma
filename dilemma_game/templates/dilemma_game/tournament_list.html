@@ -81,7 +81,9 @@
                             </td>
                             <td>{{ tournament.participants.count }}</td>
                             <td>
-                                {% if tournament.use_random_rounds %}
+                                {% if tournament.use_probability_model %}
+                                {{ tournament.continue_probability|floatformat:2 }}概率
+                                {% elif tournament.use_random_rounds %}
                                 随机({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
                                 {% else %}
                                 {{ tournament.rounds_per_match }}

@@ -27,6 +27,54 @@
         <div class="card-body">
             {% if participants %}
             <div class="row mb-4">
+                <div class="col-md-8">
+                    <h4>锦标赛信息</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>每场比赛回合数：</strong>
+                                {% if tournament.use_probability_model %}
+                                以{{ tournament.continue_probability }}的概率进行下一轮
+                                {% elif tournament.use_random_rounds %}
+                                随机 ({{ tournament.min_rounds }}-{{ tournament.max_rounds }})
+                                {% else %}
+                                固定 ({{ tournament.rounds_per_match }})
+                                {% endif %}
+                            </p>
+                            <p><strong>重复次数：</strong> {{ tournament.repetitions }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>创建时间：</strong> {{ tournament.created_at|date:"Y-m-d H:i" }}</p>
+                            <p><strong>完成时间：</strong> {{ tournament.completed_at|date:"Y-m-d H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <h4>收益矩阵</h4>
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th></th>
+                                <th>玩家2合作(C)</th>
+                                <th>玩家2背叛(D)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th class="table-light">玩家1合作(C)</th>
+                                <td>{{ tournament.payoff_matrix.CC.0 }}, {{ tournament.payoff_matrix.CC.1 }}</td>
+                                <td>{{ tournament.payoff_matrix.CD.0 }}, {{ tournament.payoff_matrix.CD.1 }}</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">玩家1背叛(D)</th>
+                                <td>{{ tournament.payoff_matrix.DC.0 }}, {{ tournament.payoff_matrix.DC.1 }}</td>
+                                <td>{{ tournament.payoff_matrix.DD.0 }}, {{ tournament.payoff_matrix.DD.1 }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row mb-4">
                 <div class="col-md-12">
                     <h4>排行榜</h4>
                     <div style="height: 400px;">

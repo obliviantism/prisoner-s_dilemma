@@ -53,7 +53,13 @@
                 </td>
                 <td>{{ tournament.participants ? tournament.participants.length : 0 }}</td>
                 <td>
-                  <span v-if="tournament.use_random_rounds" title="随机回合数">
+                  <span v-if="tournament.use_probability_model" title="概率模型">
+                    {{ (tournament.continue_probability * 100).toFixed(4) }}% 概率
+                    <small v-if="tournament.continue_probability === 1" class="d-block">
+                      (最多 {{ tournament.rounds_per_match }} 回合)
+                    </small>
+                  </span>
+                  <span v-else-if="tournament.use_random_rounds" title="随机回合数">
                     {{ tournament.min_rounds }}-{{ tournament.max_rounds }} (随机)
                   </span>
                   <span v-else>{{ tournament.rounds_per_match }}</span>
