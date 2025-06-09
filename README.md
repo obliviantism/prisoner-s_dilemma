@@ -165,14 +165,4 @@ prisoners_dilemma/
 - Axelrod, R. (1984). The Evolution of Cooperation. Basic Books.
 - Sutton, R. S., & Barto, A. G. (2018). Reinforcement Learning: An Introduction. MIT press.
 
-## 联系方式
-
-如有问题或建议，请通过 [GitHub Issues](https://github.com/yourusername/prisoners_dilemma/issues) 与我们联系。
-
----
-
-<div align="center">
-  <img src="learning_curve.png" alt="Learning Curve" width="600"/>
-  <p>强化学习策略的学习曲线</p>
-</div>
  
